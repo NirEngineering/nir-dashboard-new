@@ -1141,7 +1141,7 @@ async function sendNotifNow(){
 async function checkAutoNotif(){
   if(localStorage.getItem('notif_auto')!=='1')return;
   const last=parseInt(localStorage.getItem('notif_last_check')||'0');
-  if(Date.now()-last<60*60*1000)return;
+  if(Date.now()-last<24*60*60*1000)return;
   localStorage.setItem('notif_last_check',Date.now().toString());
   const docs=getNotifDocs();
   if(!docs.length)return;
