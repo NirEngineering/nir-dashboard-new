@@ -146,6 +146,11 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--t1);directi
 
 /* RCOUNT */
 #rcount{padding:5px 14px;font-size:.7rem;color:var(--t3);border-bottom:1px solid var(--br);flex-shrink:0;background:#fff;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+#sort-bar{padding:5px 14px;background:#fff;border-bottom:1px solid var(--br);display:flex;align-items:center;gap:5px;flex-shrink:0;flex-wrap:wrap}
+.srt-label{font-size:.68rem;color:var(--t3);white-space:nowrap;margin-left:4px}
+.srt-btn{padding:3px 9px;border-radius:10px;border:1px solid var(--br);background:var(--s2);color:var(--t2);font-size:.7rem;cursor:pointer;font-family:'Heebo',sans-serif;transition:all .15s;white-space:nowrap}
+.srt-btn:hover{border-color:var(--acc);color:var(--acc)}
+.srt-btn.on{background:#eff6ff;border-color:var(--acc);color:var(--acc);font-weight:700}
 .rc-tag{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;background:var(--s2);border:1px solid var(--br);font-size:.68rem;color:var(--t2)}
 .rc-tag button{background:none;border:none;cursor:pointer;color:var(--t3);font-size:11px;padding:0 0 0 2px;line-height:1}
 .rc-tag button:hover{color:var(--red)}
@@ -400,6 +405,13 @@ tr:hover td{background:#f8fafc}
     </div>
 
     <div id="rcount"></div>
+    <div id="sort-bar">
+      <span class="srt-label">מיון:</span>
+      <button class="srt-btn on" id="srtb-expiry"  onclick="srt('expiry')">תוקף <span id="srtd-expiry">▲</span></button>
+      <button class="srt-btn"   id="srtb-docDate"  onclick="srt('docDate')">תאריך מסמך <span id="srtd-docDate"></span></button>
+      <button class="srt-btn"   id="srtb-client"   onclick="srt('client')">לקוח <span id="srtd-client"></span></button>
+      <button class="srt-btn"   id="srtb-docType"  onclick="srt('docType')">סוג מסמך <span id="srtd-docType"></span></button>
+    </div>
 
     <div id="tarea">
       <div id="tscroll">
@@ -644,7 +656,16 @@ function srt(col){
   if(sortCol===col)sortAsc=!sortAsc;else{sortCol=col;sortAsc=true}
   document.querySelectorAll('thead th').forEach(th=>{th.classList.remove('sorted');th.querySelector('.sa').textContent='▲'});
   const th=document.getElementById('th-'+col);if(th){th.classList.add('sorted');th.querySelector('.sa').textContent=sortAsc?'▲':'▼'}
+  updateSortBar();
   sortF();renderTable_or_cards();
+}
+function updateSortBar(){
+  ['expiry','docDate','client','docType'].forEach(c=>{
+    const btn=document.getElementById('srtb-'+c);
+    const arr=document.getElementById('srtd-'+c);
+    if(btn)btn.classList.toggle('on',c===sortCol);
+    if(arr)arr.textContent=c===sortCol?(sortAsc?'▲':'▼'):'';
+  });
 }
 function sortF(){
   F.sort((a,b)=>{
@@ -1040,6 +1061,7 @@ window.addEventListener('resize',()=>{
   else renderTable_or_cards();
 });
 document.getElementById('th-expiry').classList.add('sorted');
+updateSortBar();
 
 // ══════════════════════════════════════
 //  NOTIFICATION SYSTEM — WhatsApp Business via Green API
