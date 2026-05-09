@@ -1,0 +1,23 @@
+# קבצים רגישים - לא מועלים ל-GitHub
+google_credentials.json
+ms_token.json
+ms_token_cache.json
+onedrive_links_progress.json
+scanned_files.json
+
+# לוגים וקאש
+scanner.log
+__pycache__/
+*.pyc
+
+# קבצי Word ו-Excel
+*.docx
+*.ods
+
+# סקריפטים מקומיים
+*.py
+*.bat
+*.ps1
+*.vbs
+*.gs
+*.zip
