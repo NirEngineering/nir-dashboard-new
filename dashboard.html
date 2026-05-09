@@ -1103,20 +1103,30 @@ function buildNotifMessage(){
   return msg.trim();
 }
 
+async function sendTelegram(token, chatId, msg){
+  const url=`https://api.telegram.org/bot${token}/sendMessage`;
+  const res=await fetch(url,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({chat_id:chatId, text:msg})
+  });
+  const j=await res.json();
+  if(!j.ok)throw new Error(j.description||'שגיאה');
+}
+
 async function sendNotifNow(){
-  const p=document.getElementById('notif-phone').value.replace(/\D/g,'')||localStorage.getItem('notif_phone')||'';
-  const k=document.getElementById('notif-apikey').value.trim()||localStorage.getItem('notif_apikey')||'';
-  if(!p||!k){showNotifStatus('error','יש להזין מספר טלפון ו-API Key ולשמור');return}
+  const token=document.getElementById('notif-phone').value.trim()||localStorage.getItem('notif_phone')||'';
+  const chatId=document.getElementById('notif-apikey').value.trim()||localStorage.getItem('notif_apikey')||'';
+  if(!token||!chatId){showNotifStatus('error','יש להזין Bot Token ו-Chat ID ולשמור');return}
   const msg=buildNotifMessage();
   if(!msg){showNotifStatus('ok','אין מסמכים דחופים לשליחה');return}
   showNotifStatus('ok','שולח...');
   try{
-    const url=`https://api.callmebot.com/whatsapp.php?phone=${p}&text=${encodeURIComponent(msg)}&apikey=${k}`;
-    await fetch(url,{mode:'no-cors'});
+    await sendTelegram(token,chatId,msg);
     localStorage.setItem('notif_last_sent',Date.now().toString());
-    showNotifStatus('ok','ההודעה נשלחה ✅ (בדוק וואטסאפ)');
+    showNotifStatus('ok','ההודעה נשלחה ✅ (בדוק Telegram)');
   }catch(e){
-    showNotifStatus('error','שגיאה בשליחה — בדוק מספר ו-API Key');
+    showNotifStatus('error','שגיאה: '+e.message);
   }
 }
 
@@ -1129,16 +1139,14 @@ function updateNotifBadge(){
 
 function checkAutoNotif(){
   if(localStorage.getItem('notif_auto')!=='1')return;
-  const p=localStorage.getItem('notif_phone');
-  const k=localStorage.getItem('notif_apikey');
-  if(!p||!k)return;
+  const token=localStorage.getItem('notif_phone');
+  const chatId=localStorage.getItem('notif_apikey');
+  if(!token||!chatId)return;
   const last=parseInt(localStorage.getItem('notif_last_sent')||'0');
-  const hourMs=60*60*1000;
-  if(Date.now()-last<hourMs)return;
+  if(Date.now()-last<60*60*1000)return;
   const msg=buildNotifMessage();
   if(!msg)return;
-  const url=`https://api.callmebot.com/whatsapp.php?phone=${p}&text=${encodeURIComponent(msg)}&apikey=${k}`;
-  fetch(url,{mode:'no-cors'}).then(()=>localStorage.setItem('notif_last_sent',Date.now().toString())).catch(()=>{});
+  sendTelegram(token,chatId,msg).then(()=>localStorage.setItem('notif_last_sent',Date.now().toString())).catch(()=>{});
 }
 
 updateNotifBadge();
@@ -1158,19 +1166,16 @@ function toggleArchive(){
       <div style="font-size:1.1rem;font-weight:800">🔔 התראות WhatsApp</div>
       <button onclick="closeNotifModal()" style="background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--t3)">✕</button>
     </div>
-    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px;font-size:.78rem;color:#1e40af;margin-bottom:16px;line-height:1.6">
-      <strong>איך מפעילים?</strong><br>
-      1. שלח הודעה ל-<strong>+34 644 43 79 47</strong> (CallMeBot) בווצאפ:<br>
-      <code style="background:#dbeafe;padding:2px 6px;border-radius:4px;font-size:.75rem">I allow callmebot to send me messages</code><br>
-      2. תקבל SMS עם <strong>apikey</strong> — הדבק אותו כאן.
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px;font-size:.78rem;color:#166534;margin-bottom:16px;line-height:1.6">
+      ✅ מחובר ל-Telegram Bot — מלא את הפרטים למטה ולחץ שמור.
     </div>
     <div style="margin-bottom:12px">
-      <label style="font-size:.72rem;font-weight:700;color:var(--t3);display:block;margin-bottom:5px;letter-spacing:.04em;text-transform:uppercase">מספר טלפון (עם קוד מדינה)</label>
-      <input id="notif-phone" type="tel" placeholder="972501234567" dir="ltr" style="width:100%;padding:10px 12px;background:var(--s2);border:1.5px solid var(--br);border-radius:8px;font-size:.9rem;font-family:monospace">
+      <label style="font-size:.72rem;font-weight:700;color:var(--t3);display:block;margin-bottom:5px;letter-spacing:.04em;text-transform:uppercase">Telegram Bot Token</label>
+      <input id="notif-phone" type="text" placeholder="1234567890:AAF-abc..." dir="ltr" style="width:100%;padding:10px 12px;background:var(--s2);border:1.5px solid var(--br);border-radius:8px;font-size:.85rem;font-family:monospace">
     </div>
     <div style="margin-bottom:16px">
-      <label style="font-size:.72rem;font-weight:700;color:var(--t3);display:block;margin-bottom:5px;letter-spacing:.04em;text-transform:uppercase">API Key (מ-CallMeBot)</label>
-      <input id="notif-apikey" type="text" placeholder="1234567" dir="ltr" style="width:100%;padding:10px 12px;background:var(--s2);border:1.5px solid var(--br);border-radius:8px;font-size:.9rem;font-family:monospace">
+      <label style="font-size:.72rem;font-weight:700;color:var(--t3);display:block;margin-bottom:5px;letter-spacing:.04em;text-transform:uppercase">Chat ID</label>
+      <input id="notif-apikey" type="text" placeholder="510754065" dir="ltr" style="width:100%;padding:10px 12px;background:var(--s2);border:1.5px solid var(--br);border-radius:8px;font-size:.9rem;font-family:monospace">
     </div>
     <div style="margin-bottom:18px;display:flex;align-items:center;gap:8px">
       <input type="checkbox" id="notif-auto" style="width:16px;height:16px;accent-color:var(--acc)">
