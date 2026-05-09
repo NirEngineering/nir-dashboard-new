@@ -654,8 +654,8 @@ function toggleSB(){sbOpen=!sbOpen;document.getElementById('sidebar').classList.
 
 function srt(col){
   if(sortCol===col)sortAsc=!sortAsc;else{sortCol=col;sortAsc=true}
-  document.querySelectorAll('thead th').forEach(th=>{th.classList.remove('sorted');th.querySelector('.sa').textContent='▲'});
-  const th=document.getElementById('th-'+col);if(th){th.classList.add('sorted');th.querySelector('.sa').textContent=sortAsc?'▲':'▼'}
+  document.querySelectorAll('thead th').forEach(th=>{th.classList.remove('sorted');const s=th.querySelector('.sa');if(s)s.textContent='▲'});
+  const th=document.getElementById('th-'+col);if(th){th.classList.add('sorted');const s=th.querySelector('.sa');if(s)s.textContent=sortAsc?'▲':'▼';}
   updateSortBar();
   sortF();renderTable_or_cards();
 }
