@@ -485,7 +485,6 @@ async function doLoad(silent){
       archived: iH>=0 && (r[iH]||'').trim()==='כן'
     })).filter(r=>r.client);
     document.getElementById('ov').style.display='none';
-    applyOverrides();
     // ברירת מחדל: בחר את כל הלקוחות
     ALL.forEach(r=>{ if(r.client) selClients.add(r.client); });
     applyF();
