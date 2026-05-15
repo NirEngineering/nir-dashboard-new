@@ -1073,6 +1073,9 @@ const WA_INSTANCE = '7107614555';
 const WA_TOKEN    = '9be94b91b1264012b9b39df959537b993dcccb3065b14d40b4';
 const WA_CHAT_ID  = '972504325915@c.us';
 
+// תור שליחה — הפרש 10 דקות בין הודעה להודעה
+let _nQueue=[], _nQIndex=0, _nQTimer=null;
+
 function openNotifModal(){
   document.getElementById('notif-auto').checked=localStorage.getItem('notif_auto')==='1';
   document.getElementById('notif-status').style.display='none';
@@ -1108,12 +1111,11 @@ function showNotifStatus(type,msg){
   el.textContent=msg;
 }
 
+// מסמכים כתומים בלבד: עברו מירוק לכתום (נותרו 1–90 יום)
 function getNotifDocs(){
-  const today=new Date().setHours(0,0,0,0);
   return ALL.filter(r=>{
     if(isArchived(r.expiry,r))return false;
-    const d=pd(r.expiry); if(!d)return false;
-    return Math.floor((d-today)/86400000)<=30;
+    return st(r.expiry)==='o';
   });
 }
 
@@ -1129,17 +1131,12 @@ function buildDocMsg(r){
   const today=new Date().setHours(0,0,0,0);
   const d=pd(r.expiry);
   const days=d?Math.floor((d-today)/86400000):null;
-  let status='';
-  if(days===null)status='ללא תאריך תוקף';
-  else if(days<0)status=`פג לפני ${-days} ימים 🔴`;
-  else if(days===0)status='פג היום! 🔴';
-  else status=`נותרו ${days} ימים 🟡`;
-  let msg='⚠️ התראת תוקף מסמך — ניר הנדסה\n\n';
+  let msg='🟡 תזכורת חידוש מסמך — ניר הנדסה\n\n';
   msg+=`👤 לקוח: ${r.client}\n`;
   msg+=`📋 מסמך: ${r.docType}\n`;
   if(r.location)msg+=`📍 מיקום: ${r.location}\n`;
   msg+=`📅 תאריך תוקף: ${r.expiry}\n`;
-  msg+=`⏰ ${status}`;
+  msg+=`⏰ נותרו ${days} ימים לחידוש`;
   return msg;
 }
 
@@ -1150,16 +1147,40 @@ async function sendWA(msg){
   if(!j.idMessage)throw new Error('שגיאה בשליחה');
 }
 
+// הפעל תור שליחה — הפרש 10 דקות בין כל הודעה
 async function sendNotifNow(){
   const docs=getNotifDocs();
-  if(!docs.length){showNotifStatus('ok','אין מסמכים דחופים כרגע');return;}
-  showNotifStatus('ok',`שולח ${docs.length} הודעות...`);
-  let sent=0,failed=0;
-  for(const r of docs){
-    try{await sendWA(buildDocMsg(r));sent++;await new Promise(res=>setTimeout(res,1200));}
-    catch(e){failed++;}
+  const notified=getNotifiedSet();
+  const newDocs=docs.filter(r=>!notified.has(docNotifKey(r)));
+  if(!newDocs.length){showNotifStatus('ok','אין מסמכים חדשים לשליחה');return;}
+  if(_nQTimer)clearTimeout(_nQTimer);
+  _nQueue=newDocs; _nQIndex=0;
+  closeNotifModal();
+  showToast(`📋 מתחיל תור שליחה — ${newDocs.length} הודעות בהפרש של 10 דקות`);
+  processNQueue();
+}
+
+async function processNQueue(){
+  if(_nQIndex>=_nQueue.length){
+    showToast(`✅ הסתיים — נשלחו ${_nQueue.length} הודעות`);
+    _nQueue=[];_nQIndex=0;return;
   }
-  showNotifStatus('ok',`נשלחו ${sent} הודעות${failed?` (${failed} נכשלו)`:''}  ✅`);
+  const r=_nQueue[_nQIndex];
+  try{
+    await sendWA(buildDocMsg(r));
+    const notified=getNotifiedSet();
+    notified.add(docNotifKey(r));
+    saveNotifiedSet(notified);
+    showToast(`📤 ${_nQIndex+1}/${_nQueue.length}: ${r.client} — ${r.docType}`);
+    showCalendarPrompt(r);
+  }catch(e){
+    showToast(`⚠️ שגיאת שליחה: ${r.client}`);
+  }
+  _nQIndex++;
+  if(_nQIndex<_nQueue.length){
+    _nQTimer=setTimeout(processNQueue,10*60*1000);
+    setTimeout(()=>showToast(`⏱️ ההודעה הבאה תישלח בעוד 10 דקות (השאר את הדף פתוח)`),4000);
+  }
 }
 
 async function checkAutoNotif(){
@@ -1172,15 +1193,25 @@ async function checkAutoNotif(){
   const notified=getNotifiedSet();
   const newDocs=docs.filter(r=>!notified.has(docNotifKey(r)));
   if(!newDocs.length)return;
-  for(const r of newDocs){
-    try{
-      await sendWA(buildDocMsg(r));
-      notified.add(docNotifKey(r));
-      saveNotifiedSet(notified);
-      await new Promise(res=>setTimeout(res,1200));
-    }catch(e){}
-  }
+  if(_nQTimer)clearTimeout(_nQTimer);
+  _nQueue=newDocs; _nQIndex=0;
+  processNQueue();
 }
+
+// חלון הוספה לגוגל קלנדר
+function showCalendarPrompt(r){
+  const d=pd(r.expiry);
+  if(!d)return;
+  const ds=`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+  const calUrl='https://calendar.google.com/calendar/render?action=TEMPLATE'
+    +'&text='+encodeURIComponent('חידוש: '+r.docType+' — '+r.client)
+    +'&dates='+ds+'/'+ds
+    +'&details='+encodeURIComponent(`לקוח: ${r.client}\nמסמך: ${r.docType}\nתוקף: ${r.expiry}${r.location?'\nמיקום: '+r.location:''}`);
+  document.getElementById('cal-doc-info').innerHTML=`<strong>${E(r.docType)}</strong><br>👤 ${E(r.client)}<br>📅 תוקף: ${r.expiry||'—'}`;
+  document.getElementById('cal-yes-btn').onclick=()=>{window.open(calUrl,'_blank');closeCalPrompt();};
+  document.getElementById('cal-prompt').style.display='flex';
+}
+function closeCalPrompt(){document.getElementById('cal-prompt').style.display='none';}
 
 function updateNotifBadge(){
   const auto=localStorage.getItem('notif_auto')==='1';
@@ -1208,7 +1239,8 @@ function toggleArchive(){
     </div>
     <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px;font-size:.78rem;color:#166534;margin-bottom:16px;line-height:1.7">
       ✅ מחובר ל-WhatsApp Business<br>
-      📋 הודעה נפרדת לכל מסמך שפג תוקפו או שנותר פחות מ-30 יום<br>
+      📋 הודעה לכל מסמך שעובר מירוק לכתום (נותרו עד 90 יום)<br>
+      ⏱️ הפרש של 10 דקות בין הודעה להודעה<br>
       🔁 כל מסמך נשלח פעם אחת בלבד
     </div>
     <div style="background:var(--s2);border-radius:10px;padding:12px;font-size:.8rem;margin-bottom:16px">
@@ -1223,7 +1255,7 @@ function toggleArchive(){
     </div>
     <div style="margin-bottom:18px;display:flex;align-items:center;gap:8px">
       <input type="checkbox" id="notif-auto" style="width:16px;height:16px;accent-color:var(--acc)">
-      <label for="notif-auto" style="font-size:.82rem;color:var(--t2);cursor:pointer">שליחה אוטומטית (בדיקת מסמכים חדשים כל שעה)</label>
+      <label for="notif-auto" style="font-size:.82rem;color:var(--t2);cursor:pointer">שליחה אוטומטית (בדיקה יומית — מסמכים שהפכו כתומים)</label>
     </div>
     <div id="notif-status" style="font-size:.78rem;margin-bottom:14px;padding:8px 10px;border-radius:8px;display:none"></div>
     <div style="display:flex;gap:8px;margin-bottom:10px">
@@ -1231,6 +1263,19 @@ function toggleArchive(){
       <button onclick="sendNotifNow()" style="flex:1;padding:11px;background:#25d366;color:#fff;border:none;border-radius:8px;font-size:.88rem;font-weight:700;cursor:pointer;font-family:Heebo,sans-serif">📤 שלח עכשיו</button>
     </div>
     <button onclick="resetNotifHistory()" style="width:100%;padding:8px;background:none;border:1px solid var(--br);border-radius:8px;font-size:.75rem;color:var(--t3);cursor:pointer;font-family:Heebo,sans-serif">🔄 אפס היסטוריה — שלח מחדש לכל המסמכים</button>
+  </div>
+</div>
+
+<!-- CALENDAR PROMPT -->
+<div id="cal-prompt" style="display:none;position:fixed;inset:0;z-index:700;background:rgba(15,23,42,.65);backdrop-filter:blur(6px);align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:18px;padding:26px 22px;max-width:340px;width:100%;text-align:center;font-family:Heebo,sans-serif;direction:rtl;box-shadow:0 8px 40px rgba(0,0,0,.22)">
+    <div style="font-size:2rem;margin-bottom:10px">📅</div>
+    <div style="font-size:.95rem;font-weight:800;color:var(--t1);margin-bottom:8px">הוסף תזכורת לגוגל קלנדר?</div>
+    <div id="cal-doc-info" style="font-size:.82rem;color:var(--t2);margin-bottom:22px;line-height:1.7;background:var(--s2);border-radius:10px;padding:10px 12px"></div>
+    <div style="display:flex;gap:10px">
+      <button id="cal-yes-btn" style="flex:1;padding:11px;background:#4285f4;color:#fff;border:none;border-radius:9px;font-size:.88rem;font-weight:700;cursor:pointer;font-family:Heebo,sans-serif">✅ כן, פתח קלנדר</button>
+      <button onclick="closeCalPrompt()" style="flex:1;padding:11px;background:var(--s2);color:var(--t2);border:1px solid var(--br);border-radius:9px;font-size:.88rem;font-weight:700;cursor:pointer;font-family:Heebo,sans-serif">✕ לא תודה</button>
+    </div>
   </div>
 </div>
 
