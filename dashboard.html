@@ -180,6 +180,8 @@ tr:hover td{background:#f8fafc}
 .pn{background:var(--s2);color:var(--t3);border:1px solid var(--br)}
 .lbtn{display:inline-flex;align-items:center;gap:3px;padding:4px 9px;border-radius:6px;background:#eff6ff;border:1px solid #bfdbfe;color:var(--acc);font-size:.7rem;cursor:pointer;font-family:'Heebo',sans-serif;transition:all .15s;text-decoration:none}
 .lbtn:hover{background:#dbeafe}
+.wa-btn{display:inline-flex;align-items:center;gap:3px;padding:4px 9px;border-radius:6px;background:#f0fdf4;border:1px solid #bbf7d0;color:#16a34a;font-size:.7rem;cursor:pointer;font-family:'Heebo',sans-serif;transition:all .15s;white-space:nowrap}
+.wa-btn:hover{background:#dcfce7}
 
 /* CARDS */
 #cv{display:none;flex:1;overflow-y:auto;padding:10px 14px 60px;flex-direction:column}
@@ -727,7 +729,7 @@ function renderTable(){
     const pc=s==='r'?'pr':s==='o'?'po':s==='g'?'pg':'pn';
     const dot=s==='r'?'🔴':s==='o'?'🟡':s==='g'?'🟢':'⚪';
     const lk=r.link?`<button class="lbtn" onclick="openDoc('${E(r.link)}')">📄 פתח</button>`:`<span style="color:var(--t3)">—</span>`;
-    return`<tr><td class="tdc">${E(r.client)}</td><td class="tdl" title="${E(r.location)}">${E(r.location||'—')}</td><td class="tdt">${E(r.docType)}</td><td class="tdd">${r.docDate||'—'}</td><td class="tdd">${r.expiry||'—'}</td><td><span class="pill ${pc}">${dot} ${l}</span></td><td>${lk}</td><td><button class="edit-btn" onclick="openEditModal(${idx},false)" title="עריכה">✏️</button></td></tr>`;
+    return`<tr><td class="tdc">${E(r.client)}</td><td class="tdl" title="${E(r.location)}">${E(r.location||'—')}</td><td class="tdt">${E(r.docType)}</td><td class="tdd">${r.docDate||'—'}</td><td class="tdd">${r.expiry||'—'}</td><td><span class="pill ${pc}">${dot} ${l}</span></td><td>${lk}</td><td style="white-space:nowrap"><button class="edit-btn" onclick="openEditModal(${idx},false)" title="עריכה">✏️</button> <button class="wa-btn" onclick="sendReminderNow(${idx})" title="שלח תזכורת WhatsApp">💬</button></td></tr>`;
   }).join('');
 }
 
@@ -743,7 +745,7 @@ function renderCards(){
     return`<div class="card ${cc}"><div class="ct"><div class="ctype">${E(r.docType)}</div><span class="pill ${pc}">${l}</span></div>
     <div class="cmeta">👤 ${E(r.client)}${r.location?` · 📍 ${E(r.location)}`:''}
     </div><div class="cdates"><div><div class="cdl">תאריך מסמך</div><div class="cdv">${r.docDate||'—'}</div></div><div><div class="cdl">תאריך תוקף</div><div class="cdv">${r.expiry||'—'}</div></div></div>
-    <div class="cfoot"><div class="cfn">${E(r.filename||'')}</div><div style="display:flex;gap:6px">${lk}<button class="edit-btn" onclick="openEditModal(${idx},false)" title="עריכה">✏️</button></div></div></div>`;
+    <div class="cfoot"><div class="cfn">${E(r.filename||'')}</div><div style="display:flex;gap:6px;flex-wrap:wrap">${lk}<button class="edit-btn" onclick="openEditModal(${idx},false)" title="עריכה">✏️</button><button class="wa-btn" onclick="sendReminderNow(${idx})">💬 תזכורת</button></div></div></div>`;
   }).join('');
 }
 
@@ -1131,13 +1133,31 @@ function buildDocMsg(r){
   const today=new Date().setHours(0,0,0,0);
   const d=pd(r.expiry);
   const days=d?Math.floor((d-today)/86400000):null;
-  let msg='🟡 תזכורת חידוש מסמך — ניר הנדסה\n\n';
+  const s=st(r.expiry);
+  let emoji='⚪', statusText='ללא תאריך תוקף';
+  if(s==='r'){emoji='🔴'; statusText=days!==null?`פג לפני ${-days} ימים — נדרש חידוש דחוף`:'פג תוקף';}
+  else if(s==='o'){emoji='🟡'; statusText=`נותרו ${days} ימים לחידוש`;}
+  else if(s==='g'){emoji='🟢'; statusText=`בתוקף — נותרו ${days} ימים`;}
+  let msg=`${emoji} תזכורת מסמך — ניר הנדסה\n\n`;
   msg+=`👤 לקוח: ${r.client}\n`;
   msg+=`📋 מסמך: ${r.docType}\n`;
   if(r.location)msg+=`📍 מיקום: ${r.location}\n`;
-  msg+=`📅 תאריך תוקף: ${r.expiry}\n`;
-  msg+=`⏰ נותרו ${days} ימים לחידוש`;
+  if(r.expiry)msg+=`📅 תאריך תוקף: ${r.expiry}\n`;
+  msg+=`⏰ ${statusText}`;
   return msg;
+}
+
+async function sendReminderNow(idx){
+  const r=ALL[idx];
+  if(!r)return;
+  showToast('📤 שולח הודעה...');
+  try{
+    await sendWA(buildDocMsg(r));
+    showToast(`✅ הודעה נשלחה: ${r.client} — ${r.docType}`);
+    showCalendarPrompt(r);
+  }catch(e){
+    showToast('⚠️ שגיאה בשליחה — בדוק חיבור לאינטרנט');
+  }
 }
 
 async function sendWA(msg){
