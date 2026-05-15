@@ -1184,7 +1184,6 @@ async function processNQueue(){
 }
 
 async function checkAutoNotif(){
-  if(localStorage.getItem('notif_auto')!=='1')return;
   const last=parseInt(localStorage.getItem('notif_last_check')||'0');
   if(Date.now()-last<24*60*60*1000)return;
   localStorage.setItem('notif_last_check',Date.now().toString());
@@ -1238,10 +1237,10 @@ function toggleArchive(){
       <button onclick="closeNotifModal()" style="background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--t3)">✕</button>
     </div>
     <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px;font-size:.78rem;color:#166534;margin-bottom:16px;line-height:1.7">
-      ✅ מחובר ל-WhatsApp Business<br>
+      ✅ שליחה אוטומטית פעילה תמיד<br>
       📋 הודעה לכל מסמך שעובר מירוק לכתום (נותרו עד 90 יום)<br>
       ⏱️ הפרש של 10 דקות בין הודעה להודעה<br>
-      🔁 כל מסמך נשלח פעם אחת בלבד
+      🔁 כל מסמך נשלח פעם אחת בלבד — בפתיחת הדשבורד
     </div>
     <div style="background:var(--s2);border-radius:10px;padding:12px;font-size:.8rem;margin-bottom:16px">
       <div style="display:flex;justify-content:space-between;margin-bottom:6px">
@@ -1253,14 +1252,9 @@ function toggleArchive(){
         <strong id="notif-sent-count" style="color:var(--grn)">—</strong>
       </div>
     </div>
-    <div style="margin-bottom:18px;display:flex;align-items:center;gap:8px">
-      <input type="checkbox" id="notif-auto" style="width:16px;height:16px;accent-color:var(--acc)">
-      <label for="notif-auto" style="font-size:.82rem;color:var(--t2);cursor:pointer">שליחה אוטומטית (בדיקה יומית — מסמכים שהפכו כתומים)</label>
-    </div>
     <div id="notif-status" style="font-size:.78rem;margin-bottom:14px;padding:8px 10px;border-radius:8px;display:none"></div>
     <div style="display:flex;gap:8px;margin-bottom:10px">
-      <button onclick="saveNotifSettings()" style="flex:1;padding:11px;background:linear-gradient(135deg,var(--acc),var(--acc2));color:#fff;border:none;border-radius:8px;font-size:.88rem;font-weight:700;cursor:pointer;font-family:Heebo,sans-serif">💾 שמור הגדרות</button>
-      <button onclick="sendNotifNow()" style="flex:1;padding:11px;background:#25d366;color:#fff;border:none;border-radius:8px;font-size:.88rem;font-weight:700;cursor:pointer;font-family:Heebo,sans-serif">📤 שלח עכשיו</button>
+      <button onclick="sendNotifNow()" style="flex:1;padding:11px;background:#25d366;color:#fff;border:none;border-radius:8px;font-size:.88rem;font-weight:700;cursor:pointer;font-family:Heebo,sans-serif">📤 שלח עכשיו (ידנית)</button>
     </div>
     <button onclick="resetNotifHistory()" style="width:100%;padding:8px;background:none;border:1px solid var(--br);border-radius:8px;font-size:.75rem;color:var(--t3);cursor:pointer;font-family:Heebo,sans-serif">🔄 אפס היסטוריה — שלח מחדש לכל המסמכים</button>
   </div>
