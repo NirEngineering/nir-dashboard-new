@@ -1310,7 +1310,7 @@ async function sendReminderNow(idx){
     showToast(`✅ הודעה נשלחה: ${r.client} — ${r.docType}`);
     showCalendarPrompt(r);
   }catch(e){
-    showToast('⚠️ שגיאה בשליחה — בדוק חיבור לאינטרנט');
+    showToast('⚠️ ' + (e&&e.message||'שגיאה לא ידועה'));
   }
 }
 
