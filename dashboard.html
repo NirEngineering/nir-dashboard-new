@@ -180,6 +180,8 @@ tr:hover td{background:#f8fafc}
 .pn{background:var(--s2);color:var(--t3);border:1px solid var(--br)}
 .lbtn{display:inline-flex;align-items:center;gap:3px;padding:4px 9px;border-radius:6px;background:#eff6ff;border:1px solid #bfdbfe;color:var(--acc);font-size:.7rem;cursor:pointer;font-family:'Heebo',sans-serif;transition:all .15s;text-decoration:none}
 .lbtn:hover{background:#dbeafe}
+.dup-btn{background:#f5f3ff;border:1px solid #ddd6fe;color:#7c3aed}
+.dup-btn:hover{background:#ede9fe}
 .wa-btn{display:inline-flex;align-items:center;gap:3px;padding:4px 9px;border-radius:6px;background:#f0fdf4;border:1px solid #bbf7d0;color:#16a34a;font-size:.7rem;cursor:pointer;font-family:'Heebo',sans-serif;transition:all .15s;white-space:nowrap}
 .wa-btn:hover{background:#dcfce7}
 
@@ -720,6 +722,19 @@ function openDoc(link){
   }
 }
 
+async function duplicateAndOpen(idx){
+  const r = ALL[idx];
+  if(!r) return;
+  const copy = Object.assign({}, r);
+  copy.filename = r.filename ? r.filename.replace(/(\.[^.]+)?$/, m => ' (עותק)' + m) : r.filename;
+  ALL.push(copy);
+  applyF();
+  showToast('📋 משכפל רשומה...');
+  const ok = await sheetCall('duplicate', {filename: r.filename, client: r.client});
+  showToast(ok ? '✅ שוכפל ב-Google Sheets' : '✅ שוכפל מקומית');
+  if(r.link) openDoc(r.link);
+}
+
 function renderTable(){
   const tb=document.getElementById('tbody');
   if(!F.length){tb.innerHTML=`<tr><td colspan="8"><div class="empty"><div class="ei">🔍</div><div class="et">לא נמצאו תוצאות</div></div></td></tr>`;return}
@@ -729,7 +744,8 @@ function renderTable(){
     const pc=s==='r'?'pr':s==='o'?'po':s==='g'?'pg':'pn';
     const dot=s==='r'?'🔴':s==='o'?'🟡':s==='g'?'🟢':'⚪';
     const lk=r.link?`<button class="lbtn" onclick="openDoc('${E(r.link)}')">📄 פתח</button>`:`<span style="color:var(--t3)">—</span>`;
-    return`<tr><td class="tdc">${E(r.client)}</td><td class="tdl" title="${E(r.location)}">${E(r.location||'—')}</td><td class="tdt">${E(r.docType)}</td><td class="tdd">${r.docDate||'—'}</td><td class="tdd">${r.expiry||'—'}</td><td><span class="pill ${pc}">${dot} ${l}</span></td><td>${lk}</td><td style="white-space:nowrap"><button class="edit-btn" onclick="openEditModal(${idx},false)" title="עריכה">✏️</button> <button class="wa-btn" onclick="sendReminderNow(${idx})" title="שלח תזכורת WhatsApp">💬</button></td></tr>`;
+    const dupBtn=r.link?`<button class="lbtn dup-btn" onclick="duplicateAndOpen(${idx})" title="שכפל רשומה ופתח מסמך">📋 שכפל ופתח</button>`:'';
+    return`<tr><td class="tdc">${E(r.client)}</td><td class="tdl" title="${E(r.location)}">${E(r.location||'—')}</td><td class="tdt">${E(r.docType)}</td><td class="tdd">${r.docDate||'—'}</td><td class="tdd">${r.expiry||'—'}</td><td><span class="pill ${pc}">${dot} ${l}</span></td><td style="white-space:nowrap;display:flex;gap:4px;flex-wrap:wrap">${lk}${dupBtn}</td><td style="white-space:nowrap"><button class="edit-btn" onclick="openEditModal(${idx},false)" title="עריכה">✏️</button> <button class="wa-btn" onclick="sendReminderNow(${idx})" title="שלח תזכורת WhatsApp">💬</button></td></tr>`;
   }).join('');
 }
 
@@ -742,10 +758,11 @@ function renderCards(){
     const pc=s==='r'?'pr':s==='o'?'po':s==='g'?'pg':'pn';
     const cc=s==='r'?'cr':s==='o'?'co':s==='g'?'cg':'';
     const lk=r.link?`<button class="lbtn" onclick="openDoc('${E(r.link)}')">📄 פתח</button>`:'';
+    const dupBtn=r.link?`<button class="lbtn dup-btn" onclick="duplicateAndOpen(${idx})" title="שכפל רשומה ופתח מסמך">📋 שכפל ופתח</button>`:'';
     return`<div class="card ${cc}"><div class="ct"><div class="ctype">${E(r.docType)}</div><span class="pill ${pc}">${l}</span></div>
     <div class="cmeta">👤 ${E(r.client)}${r.location?` · 📍 ${E(r.location)}`:''}
     </div><div class="cdates"><div><div class="cdl">תאריך מסמך</div><div class="cdv">${r.docDate||'—'}</div></div><div><div class="cdl">תאריך תוקף</div><div class="cdv">${r.expiry||'—'}</div></div></div>
-    <div class="cfoot"><div class="cfn">${E(r.filename||'')}</div><div style="display:flex;gap:6px;flex-wrap:wrap">${lk}<button class="edit-btn" onclick="openEditModal(${idx},false)" title="עריכה">✏️</button><button class="wa-btn" onclick="sendReminderNow(${idx})">💬 תזכורת</button></div></div></div>`;
+    <div class="cfoot"><div class="cfn">${E(r.filename||'')}</div><div style="display:flex;gap:6px;flex-wrap:wrap">${lk}${dupBtn}<button class="edit-btn" onclick="openEditModal(${idx},false)" title="עריכה">✏️</button><button class="wa-btn" onclick="sendReminderNow(${idx})">💬 תזכורת</button></div></div></div>`;
   }).join('');
 }
 
