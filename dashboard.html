@@ -739,7 +739,7 @@ function _loadScript(src){
 async function _getMSToken(){
   if(!MSAL_CLIENT_ID){showToast('⚠️ יש להגדיר MSAL_CLIENT_ID בקוד');return null;}
   if(!_msalApp){
-    await _loadScript('https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js');
+    await _loadScript('https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js');
     _msalApp = new msal.PublicClientApplication({
       auth:{
         clientId: MSAL_CLIENT_ID,
