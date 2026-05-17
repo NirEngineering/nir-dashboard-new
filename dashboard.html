@@ -890,7 +890,7 @@ function renderCards(){
     return`<div class="card ${cc}"><div class="ct"><div class="ctype">${E(r.docType)}</div><span class="pill ${pc}">${l}</span></div>
     <div class="cmeta">👤 ${E(r.client)}${r.location?` · 📍 ${E(r.location)}`:''}
     </div><div class="cdates"><div><div class="cdl">תאריך מסמך</div><div class="cdv">${r.docDate||'—'}</div></div><div><div class="cdl">תאריך תוקף</div><div class="cdv">${r.expiry||'—'}</div></div></div>
-    <div class="cfoot"><div class="cfn">${E(r.filename||'')}</div><div style="display:flex;gap:6px;flex-wrap:wrap">${lk}${dupBtn}<button class="edit-btn" onclick="openEditModal(${idx},false)" title="עריכה">✏️</button><button class="wa-btn" onclick="sendReminderNow(${idx})">💬 תזכורת</button></div></div></div>`;
+    <div class="cfoot" style="flex-direction:column;align-items:stretch;gap:5px"><div style="display:flex;gap:6px;flex-wrap:wrap">${lk}${dupBtn}<button class="edit-btn" onclick="openEditModal(${idx},false)" title="עריכה">✏️</button><button class="wa-btn" onclick="sendReminderNow(${idx})">💬 תזכורת</button></div><div class="cfn">${E(r.filename||'')}</div></div></div>`;
   }).join('');
 }
 
@@ -1260,9 +1260,13 @@ function showNotifStatus(type,msg){
 
 // מסמכים כתומים בלבד: עברו מירוק לכתום (נותרו 1–90 יום)
 function getNotifDocs(){
+  const today=new Date().setHours(0,0,0,0);
   return ALL.filter(r=>{
     if(isArchived(r.expiry,r))return false;
-    return st(r.expiry)==='o';
+    const d=pd(r.expiry);
+    if(!d)return false;
+    const days=Math.floor((d-today)/86400000);
+    return days>=20&&days<=30;
   });
 }
 
@@ -1349,6 +1353,13 @@ async function processNQueue(){
 }
 
 async function checkAutoNotif(){
+  if(localStorage.getItem('notif_auto')!=='1')return;
+  const now=new Date();
+  const day=now.getDay(); // 0=ראשון … 6=שבת
+  const hour=now.getHours();
+  // רק ראשון–חמישי (0–4), שעות 8:00–16:00
+  if(day===5||day===6)return;
+  if(hour<8||hour>=16)return;
   const last=parseInt(localStorage.getItem('notif_last_check')||'0');
   if(Date.now()-last<24*60*60*1000)return;
   localStorage.setItem('notif_last_check',Date.now().toString());
