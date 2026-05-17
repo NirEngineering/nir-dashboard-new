@@ -743,7 +743,7 @@ async function _getMSToken(){
     _msalApp = new msal.PublicClientApplication({
       auth:{
         clientId: MSAL_CLIENT_ID,
-        authority: 'https://login.microsoftonline.com/common',
+        authority: 'https://login.microsoftonline.com/consumers',
         redirectUri: window.location.origin + window.location.pathname
       },
       cache:{cacheLocation:'sessionStorage',storeAuthStateInCookie:false}
