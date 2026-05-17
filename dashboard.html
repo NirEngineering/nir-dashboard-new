@@ -743,7 +743,7 @@ async function _getMSToken(){
     _msalApp = new msal.PublicClientApplication({
       auth:{
         clientId: MSAL_CLIENT_ID,
-        authority: 'https://login.microsoftonline.com/consumers',
+        authority: 'https://login.microsoftonline.com/common',
         redirectUri: window.location.origin + window.location.pathname
       },
       cache:{cacheLocation:'sessionStorage',storeAuthStateInCookie:false}
@@ -760,8 +760,9 @@ async function _getMSToken(){
   try{
     const r = await _msalApp.loginPopup({scopes});
     return r.accessToken;
-  }catch(_){
-    showToast('❌ ביטול התחברות Microsoft');
+  }catch(e){
+    const msg = e && e.message ? e.message : String(e);
+    showToast('❌ ' + msg.slice(0,80));
     return null;
   }
 }
@@ -831,7 +832,7 @@ async function duplicateAndOpen(idx){
   if(isOneDrive && MSAL_CLIENT_ID){
     showToast('🔑 מתחבר ל-OneDrive...');
     let token;
-    try{ token = await _getMSToken(); }catch(e){ showToast('❌ שגיאת התחברות'); return; }
+    try{ token = await _getMSToken(); }catch(e){ showToast('❌ שגיאת התחברות: '+(e&&e.message||e)); return; }
     if(!token) return;
 
     showToast('📋 משכפל קובץ ב-OneDrive...');
