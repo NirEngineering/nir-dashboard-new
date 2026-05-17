@@ -1267,6 +1267,9 @@ function getNotifDocs(){
     if(!d)return false;
     const days=Math.floor((d-today)/86400000);
     return days>=20&&days<=30;
+  }).sort((a,b)=>{
+    const da=pd(a.expiry), db=pd(b.expiry);
+    return (da||0)-(db||0); // הקרוב לפוג — ראשון
   });
 }
 
