@@ -1219,6 +1219,8 @@ updateSortBar();
 const WA_INSTANCE = '7107614555';
 const WA_TOKEN    = '9be94b91b1264012b9b39df959537b993dcccb3065b14d40b4';
 const WA_CHAT_ID  = '120363407772102401@g.us';
+const TG_TOKEN    = '8602693100:AAEz-x_RX7ANZDObdOKJvtpfk1bAcrqHo1E';
+const TG_CHAT_ID  = '510754065';
 
 // תור שליחה — הפרש 10 דקות בין הודעה להודעה
 let _nQueue=[], _nQIndex=0, _nQTimer=null;
@@ -1306,7 +1308,7 @@ async function sendReminderNow(idx){
   if(!r)return;
   showToast('📤 שולח הודעה...');
   try{
-    await sendWA(buildDocMsg(r));
+    await sendTelegram(buildDocMsg(r));
     showToast(`✅ הודעה נשלחה: ${r.client} — ${r.docType}`);
     showCalendarPrompt(r);
   }catch(e){
@@ -1320,6 +1322,13 @@ async function sendWA(msg){
   const res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chatId:WA_CHAT_ID,message:msg})});
   const j=await res.json();
   if(!j.idMessage)throw new Error(JSON.stringify(j).slice(0,120));
+}
+
+async function sendTelegram(msg){
+  const url=`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`;
+  const res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:TG_CHAT_ID,text:msg})});
+  const j=await res.json();
+  if(!j.ok)throw new Error(j.description||JSON.stringify(j).slice(0,120));
 }
 
 // הפעל תור שליחה — הפרש 10 דקות בין כל הודעה
@@ -1342,7 +1351,7 @@ async function processNQueue(){
   }
   const r=_nQueue[_nQIndex];
   try{
-    await sendWA(buildDocMsg(r));
+    await sendTelegram(buildDocMsg(r));
     const notified=getNotifiedSet();
     notified.add(docNotifKey(r));
     saveNotifiedSet(notified);
