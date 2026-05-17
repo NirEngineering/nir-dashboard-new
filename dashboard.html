@@ -453,6 +453,8 @@ const FIXED_KEY = "AIzaSyDJy8tolZu8z-IuMFXSmRfsFFrM_rJkK8w";
 const ACCESS_CODE = "2157";
 // ← הדבק כאן את ה-URL שתקבל מ-Apps Script לאחר Deployment
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzsfvTN0f--c_FxN-_uhsR4IETdv4sF7gepw_kWyVgT3jtMCvFPw7skvpx9TiyGEYBY/exec";
+// ← הדבק כאן את ה-Application (client) ID שתקבל מ-Azure Portal לאחר יצירת App Registration
+const MSAL_CLIENT_ID = '';
 
 function doLogin(){
   const p = document.getElementById('inp-pass').value.trim();
@@ -722,15 +724,140 @@ function openDoc(link){
   }
 }
 
+// ── Microsoft Graph / OneDrive helpers ──
+let _msalApp = null;
+
+function _loadScript(src){
+  return new Promise((res,rej)=>{
+    if(document.querySelector(`script[src="${src}"]`)){res();return;}
+    const s=document.createElement('script');
+    s.src=src; s.onload=res; s.onerror=rej;
+    document.head.appendChild(s);
+  });
+}
+
+async function _getMSToken(){
+  if(!MSAL_CLIENT_ID){showToast('⚠️ יש להגדיר MSAL_CLIENT_ID בקוד');return null;}
+  if(!_msalApp){
+    await _loadScript('https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js');
+    _msalApp = new msal.PublicClientApplication({
+      auth:{
+        clientId: MSAL_CLIENT_ID,
+        authority: 'https://login.microsoftonline.com/consumers',
+        redirectUri: window.location.origin + window.location.pathname
+      },
+      cache:{cacheLocation:'sessionStorage',storeAuthStateInCookie:false}
+    });
+  }
+  const scopes = ['Files.ReadWrite'];
+  const accounts = _msalApp.getAllAccounts();
+  try{
+    if(accounts.length){
+      const r = await _msalApp.acquireTokenSilent({scopes, account:accounts[0]});
+      return r.accessToken;
+    }
+  }catch(_){}
+  try{
+    const r = await _msalApp.loginPopup({scopes});
+    return r.accessToken;
+  }catch(_){
+    showToast('❌ ביטול התחברות Microsoft');
+    return null;
+  }
+}
+
+async function _duplicateOneDriveFile(shareUrl, token){
+  // base64url encode the sharing URL
+  const encoded = btoa(shareUrl).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+  const itemRes = await fetch(
+    `https://graph.microsoft.com/v1.0/shares/u!${encoded}/driveItem?$select=id,name,parentReference`,
+    {headers:{Authorization:`Bearer ${token}`}}
+  );
+  if(!itemRes.ok) throw new Error('לא ניתן לאתר את הקובץ ב-OneDrive. ודא שהקישור תקין.');
+  const item = await itemRes.json();
+
+  const m = item.name.match(/^(.*?)(\.[^.]+)?$/);
+  const newName = (m[1]||item.name) + ' (עותק)' + (m[2]||'');
+
+  const copyRes = await fetch(
+    `https://graph.microsoft.com/v1.0/drives/${item.parentReference.driveId}/items/${item.id}/copy`,
+    {
+      method:'POST',
+      headers:{
+        Authorization:`Bearer ${token}`,
+        'Content-Type':'application/json',
+        Prefer:'respond-async'
+      },
+      body:JSON.stringify({
+        name: newName,
+        parentReference:{driveId:item.parentReference.driveId, id:item.parentReference.id}
+      })
+    }
+  );
+  if(copyRes.status!==202) throw new Error('שגיאה בשכפול הקובץ ב-OneDrive');
+
+  const monitorUrl = copyRes.headers.get('Location');
+  if(!monitorUrl) return null;
+
+  // Poll until done (max ~30s)
+  for(let i=0;i<15;i++){
+    await new Promise(r=>setTimeout(r,2000));
+    const mData = await (await fetch(monitorUrl)).json();
+    if(mData.status==='completed'){
+      if(mData.resourceId){
+        const ni = await fetch(
+          `https://graph.microsoft.com/v1.0/me/drive/items/${mData.resourceId}?$select=webUrl`,
+          {headers:{Authorization:`Bearer ${token}`}}
+        );
+        if(ni.ok){const d=await ni.json();return d.webUrl;}
+      }
+      return null;
+    }
+    if(mData.status==='failed') throw new Error('שכפול הקובץ נכשל ב-OneDrive');
+  }
+  return null; // timeout — פותח את המקור
+}
+
 async function duplicateAndOpen(idx){
   const r = ALL[idx];
   if(!r) return;
+
+  const isOneDrive = r.link && (
+    r.link.includes('onedrive.live.com') ||
+    r.link.includes('1drv.ms') ||
+    r.link.includes('sharepoint.com')
+  );
+
+  if(isOneDrive && MSAL_CLIENT_ID){
+    showToast('🔑 מתחבר ל-OneDrive...');
+    let token;
+    try{ token = await _getMSToken(); }catch(e){ showToast('❌ שגיאת התחברות'); return; }
+    if(!token) return;
+
+    showToast('📋 משכפל קובץ ב-OneDrive...');
+    try{
+      const newUrl = await _duplicateOneDriveFile(r.link, token);
+      const copy = Object.assign({}, r);
+      copy.filename = r.filename ? r.filename.replace(/(\.[^.]+)?$/, m=>' (עותק)'+m) : r.filename;
+      if(newUrl) copy.link = newUrl;
+      ALL.push(copy);
+      applyF();
+      showToast(newUrl ? '✅ הקובץ שוכפל ב-OneDrive!' : '✅ שכפול הושלם (עשוי לקחת כמה שניות)');
+      sheetCall('duplicate', {filename:r.filename, client:r.client});
+      openDoc(newUrl || r.link);
+    }catch(e){
+      showToast('❌ ' + e.message);
+    }
+    return;
+  }
+
+  // fallback — ללא OneDrive API (שכפול רשומה בלבד)
   const copy = Object.assign({}, r);
-  copy.filename = r.filename ? r.filename.replace(/(\.[^.]+)?$/, m => ' (עותק)' + m) : r.filename;
+  copy.filename = r.filename ? r.filename.replace(/(\.[^.]+)?$/, m=>' (עותק)'+m) : r.filename;
   ALL.push(copy);
   applyF();
   showToast('📋 משכפל רשומה...');
-  const ok = await sheetCall('duplicate', {filename: r.filename, client: r.client});
+  const ok = await sheetCall('duplicate', {filename:r.filename, client:r.client});
   showToast(ok ? '✅ שוכפל ב-Google Sheets' : '✅ שוכפל מקומית');
   if(r.link) openDoc(r.link);
 }
