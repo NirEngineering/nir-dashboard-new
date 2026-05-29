@@ -1245,6 +1245,7 @@ function saveNotifSettings(){
 function resetNotifHistory(){
   localStorage.removeItem('notif_sent');
   localStorage.removeItem('notif_last_check');
+  localStorage.removeItem('notif_catchup_done');
   const docs=getNotifDocs();
   document.getElementById('notif-pending').textContent=docs.length;
   document.getElementById('notif-sent-count').textContent='0';
@@ -1263,15 +1264,17 @@ function showNotifStatus(type,msg){
 // מסמכים כתומים בלבד: עברו מירוק לכתום (נותרו 1–90 יום)
 function getNotifDocs(){
   const today=new Date().setHours(0,0,0,0);
+  const catchupDone=localStorage.getItem('notif_catchup_done')==='1';
   return ALL.filter(r=>{
     if(isArchived(r.expiry,r))return false;
     const d=pd(r.expiry);
     if(!d)return false;
     const days=Math.floor((d-today)/86400000);
-    return days>=20&&days<=30;
+    if(!catchupDone) return days>=60&&days<=100; // שלב catch-up
+    return days===60;                             // שוטף — בדיוק 60 ימים
   }).sort((a,b)=>{
     const da=pd(a.expiry), db=pd(b.expiry);
-    return (da||0)-(db||0); // הקרוב לפוג — ראשון
+    return (da||0)-(db||0);
   });
 }
 
@@ -1346,7 +1349,12 @@ async function sendNotifNow(){
 
 async function processNQueue(){
   if(_nQIndex>=_nQueue.length){
-    showToast(`✅ הסתיים — נשלחו ${_nQueue.length} הודעות`);
+    if(localStorage.getItem('notif_catchup_done')!=='1'){
+      localStorage.setItem('notif_catchup_done','1');
+      showToast(`✅ שלב ראשוני הושלם — ${_nQueue.length} הודעות. מעתה תזכורות רק ב-60 יום בדיוק`);
+    }else{
+      showToast(`✅ הסתיים — נשלחו ${_nQueue.length} הודעות`);
+    }
     _nQueue=[];_nQIndex=0;return;
   }
   const r=_nQueue[_nQIndex];
