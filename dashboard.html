@@ -1270,8 +1270,8 @@ function getNotifDocs(){
     const d=pd(r.expiry);
     if(!d)return false;
     const days=Math.floor((d-today)/86400000);
-    if(!catchupDone) return days>=60&&days<=100; // שלב catch-up
-    return days===60;                             // שוטף — בדיוק 60 ימים
+    if(!catchupDone) return days>=45&&days<=100; // שלב catch-up
+    return days===45;                             // שוטף — בדיוק 45 ימים
   }).sort((a,b)=>{
     const da=pd(a.expiry), db=pd(b.expiry);
     return (da||0)-(db||0);
@@ -1351,7 +1351,7 @@ async function processNQueue(){
   if(_nQIndex>=_nQueue.length){
     if(localStorage.getItem('notif_catchup_done')!=='1'){
       localStorage.setItem('notif_catchup_done','1');
-      showToast(`✅ שלב ראשוני הושלם — ${_nQueue.length} הודעות. מעתה תזכורות רק ב-60 יום בדיוק`);
+      showToast(`✅ שלב ראשוני הושלם — ${_nQueue.length} הודעות. מעתה תזכורות רק ב-45 יום בדיוק`);
     }else{
       showToast(`✅ הסתיים — נשלחו ${_nQueue.length} הודעות`);
     }
