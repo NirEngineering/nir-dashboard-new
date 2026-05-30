@@ -1275,7 +1275,7 @@ updateSortBar();
 
 const WA_INSTANCE = '7107614555';
 const WA_TOKEN    = '9be94b91b1264012b9b39df959537b993dcccb3065b14d40b4';
-const WA_CHAT_ID  = '120363407772102401@g.us';
+const WA_CHAT_ID  = '972504325915@c.us';
 const TG_TOKEN    = '8602693100:AAEz-x_RX7ANZDObdOKJvtpfk1bAcrqHo1E';
 const TG_CHAT_ID  = '510754065';
 
@@ -1368,7 +1368,7 @@ async function sendReminderNow(idx){
   if(!r)return;
   showToast('📤 שולח הודעה...');
   try{
-    await sendTelegram(buildDocMsg(r));
+    await sendWA(buildDocMsg(r));
     showToast(`✅ הודעה נשלחה: ${r.client} — ${r.docType}`);
     showCalendarPrompt(r);
   }catch(e){
@@ -1416,7 +1416,7 @@ async function processNQueue(){
   }
   const r=_nQueue[_nQIndex];
   try{
-    await sendTelegram(buildDocMsg(r));
+    await sendWA(buildDocMsg(r));
     const notified=getNotifiedSet();
     notified.add(docNotifKey(r));
     saveNotifiedSet(notified);
