@@ -647,7 +647,7 @@ function renderSB(){
   document.getElementById('clist').innerHTML=sorted.map(c=>{
     const i=cm[c],sel=selClients.has(c);
     return`<div class="ci${sel?' sel':''}${i.w==='r'?' sr':i.w==='o'?' so':''}" onclick="togClient('${E(c)}')">
-      <div class="cicb">${sel?'✓':''}</div><div class="cin">${E(c)}</div><div class="cib">${i.t}</div>
+      <div class="cicb">${sel?'✓':''}</div><div class="cin">${E(dc(c))}</div><div class="cib">${i.t}</div>
     </div>`;
   }).join('');
   const sc=document.getElementById('selc');sc.textContent=selClients.size?`${selClients.size} נבחרו`:'';
@@ -872,7 +872,7 @@ function renderTable(){
     const dot=s==='r'?'🔴':s==='o'?'🟡':s==='g'?'🟢':'⚪';
     const lk=r.link?`<button class="lbtn" onclick="openDoc('${E(r.link)}')">📄 פתח</button>`:`<span style="color:var(--t3)">—</span>`;
     const dupBtn=r.link?`<button class="lbtn dup-btn" onclick="duplicateAndOpen(${idx})" title="שכפל רשומה ופתח מסמך">📋 שכפל ופתח</button>`:'';
-    return`<tr><td class="tdc">${E(r.client)}</td><td class="tdl" title="${E(r.location)}">${E(r.location||'—')}</td><td class="tdt">${E(r.docType)}</td><td class="tdd">${r.docDate||'—'}</td><td class="tdd">${r.expiry||'—'}</td><td><span class="pill ${pc}">${dot} ${l}</span></td><td style="white-space:nowrap;display:flex;gap:4px;flex-wrap:wrap">${lk}${dupBtn}</td><td style="white-space:nowrap"><button class="edit-btn" onclick="openEditModal(${idx},false)" title="עריכה">✏️</button> <button class="wa-btn" onclick="sendReminderNow(${idx})" title="שלח תזכורת WhatsApp">💬</button></td></tr>`;
+    return`<tr><td class="tdc">${E(dc(r.client))}</td><td class="tdl" title="${E(r.location)}">${E(r.location||'—')}</td><td class="tdt">${E(r.docType)}</td><td class="tdd">${r.docDate||'—'}</td><td class="tdd">${r.expiry||'—'}</td><td><span class="pill ${pc}">${dot} ${l}</span></td><td style="white-space:nowrap;display:flex;gap:4px;flex-wrap:wrap">${lk}${dupBtn}</td><td style="white-space:nowrap"><button class="edit-btn" onclick="openEditModal(${idx},false)" title="עריכה">✏️</button> <button class="wa-btn" onclick="sendReminderNow(${idx})" title="שלח תזכורת WhatsApp">💬</button></td></tr>`;
   }).join('');
 }
 
@@ -887,7 +887,7 @@ function renderCards(){
     const lk=r.link?`<button class="lbtn" onclick="openDoc('${E(r.link)}')">📄 פתח</button>`:'';
     const dupBtn=r.link?`<button class="lbtn dup-btn" onclick="duplicateAndOpen(${idx})" title="שכפל רשומה ופתח מסמך">📋 שכפל ופתח</button>`:'';
     return`<div class="card ${cc}"><div class="ct"><div class="ctype">${E(r.docType)}</div><span class="pill ${pc}">${l}</span></div>
-    <div class="cmeta">👤 ${E(r.client)}${r.location?` · 📍 ${E(r.location)}`:''}
+    <div class="cmeta">👤 ${E(dc(r.client))}${r.location?` · 📍 ${E(r.location)}`:''}
     </div><div class="cdates"><div><div class="cdl">תאריך מסמך</div><div class="cdv">${r.docDate||'—'}</div></div><div><div class="cdl">תאריך תוקף</div><div class="cdv">${r.expiry||'—'}</div></div></div>
     <div class="cfoot"><div class="cfn">${E(r.filename||'')}</div><div style="display:flex;gap:6px;flex-wrap:wrap">${lk}${dupBtn}<button class="edit-btn" onclick="openEditModal(${idx},false)" title="עריכה">✏️</button><button class="wa-btn" onclick="sendReminderNow(${idx})">💬 תזכורת</button></div></div></div>`;
   }).join('');
@@ -912,6 +912,7 @@ function clrAll(){
 }
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000)}
 function E(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
+function dc(c){return (c||'').replace(/^[א-ת]+\.[א-ת]+\s+/,'')}
 
 function matchWords(q, fields){
   const words = q.trim().split(/\s+/).filter(Boolean);
@@ -1186,7 +1187,7 @@ function renderArchive(){
     const arcBadge=r._localArc?'<span style="background:#eff6ff;color:var(--acc);border:1px solid #bfdbfe;border-radius:10px;padding:1px 6px;font-size:.65rem;font-weight:700;margin-left:4px">ידני</span>':'';
     const lk=r.link?'<button class="lbtn" onclick="openDoc(\''+E(r.link)+'\')">📄 פתח</button>':'<span style="color:var(--t3)">—</span>';
     return '<tr style="opacity:.85">'
-      +'<td style="padding:8px 12px;font-weight:600;font-size:.79rem;border-bottom:1px solid var(--br)">'+E(r.client)+arcBadge+'</td>'
+      +'<td style="padding:8px 12px;font-weight:600;font-size:.79rem;border-bottom:1px solid var(--br)">'+E(dc(r.client))+arcBadge+'</td>'
       +'<td style="padding:8px 12px;color:var(--t2);font-size:.75rem;border-bottom:1px solid var(--br)">'+E(r.location||'—')+'</td>'
       +'<td style="padding:8px 12px;font-size:.78rem;border-bottom:1px solid var(--br)">'+E(r.docType)+'</td>'
       +'<td style="padding:8px 12px;color:var(--t2);font-size:.75rem;border-bottom:1px solid var(--br)">'+(r.expiry||'—')+'</td>'
@@ -1297,7 +1298,7 @@ async function sendReminderNow(idx){
   showToast('📤 שולח הודעה...');
   try{
     await sendWA(buildDocMsg(r));
-    showToast(`✅ הודעה נשלחה: ${r.client} — ${r.docType}`);
+    showToast(`✅ הודעה נשלחה: ${dc(r.client)} — ${r.docType}`);
     showCalendarPrompt(r);
   }catch(e){
     showToast('⚠️ שגיאה בשליחה — בדוק חיבור לאינטרנט');
@@ -1335,10 +1336,10 @@ async function processNQueue(){
     const notified=getNotifiedSet();
     notified.add(docNotifKey(r));
     saveNotifiedSet(notified);
-    showToast(`📤 ${_nQIndex+1}/${_nQueue.length}: ${r.client} — ${r.docType}`);
+    showToast(`📤 ${_nQIndex+1}/${_nQueue.length}: ${dc(r.client)} — ${r.docType}`);
     showCalendarPrompt(r);
   }catch(e){
-    showToast(`⚠️ שגיאת שליחה: ${r.client}`);
+    showToast(`⚠️ שגיאת שליחה: ${dc(r.client)}`);
   }
   _nQIndex++;
   if(_nQIndex<_nQueue.length){
@@ -1367,10 +1368,10 @@ function showCalendarPrompt(r){
   if(!d)return;
   const ds=`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
   const calUrl='https://calendar.google.com/calendar/render?action=TEMPLATE'
-    +'&text='+encodeURIComponent('חידוש: '+r.docType+' — '+r.client)
+    +'&text='+encodeURIComponent('חידוש: '+r.docType+' — '+dc(r.client))
     +'&dates='+ds+'/'+ds
-    +'&details='+encodeURIComponent(`לקוח: ${r.client}\nמסמך: ${r.docType}\nתוקף: ${r.expiry}${r.location?'\nמיקום: '+r.location:''}`);
-  document.getElementById('cal-doc-info').innerHTML=`<strong>${E(r.docType)}</strong><br>👤 ${E(r.client)}<br>📅 תוקף: ${r.expiry||'—'}`;
+    +'&details='+encodeURIComponent(`לקוח: ${dc(r.client)}\nמסמך: ${r.docType}\nתוקף: ${r.expiry}${r.location?'\nמיקום: '+r.location:''}`);
+  document.getElementById('cal-doc-info').innerHTML=`<strong>${E(r.docType)}</strong><br>👤 ${E(dc(r.client))}<br>📅 תוקף: ${r.expiry||'—'}`;
   document.getElementById('cal-yes-btn').onclick=()=>{window.open(calUrl,'_blank');closeCalPrompt();};
   document.getElementById('cal-prompt').style.display='flex';
 }
