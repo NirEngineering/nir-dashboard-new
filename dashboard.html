@@ -315,6 +315,7 @@ tr:hover td{background:#f8fafc}
   <button class="tbtn" id="vbc" onclick="setView('c')">🃏 כרטיסיות</button>
   <button class="tbtn" onclick="toggleSB()">☰</button>
   <button class="tbtn" id="arc-btn" onclick="toggleArchive()">📦 ארכיון <span id="arc-count" style="background:var(--gry);color:#fff;border-radius:8px;padding:1px 6px;font-size:.65rem;margin-right:3px"></span></button>
+  <button class="tbtn" onclick="openAddModal()" title="הוסף מסמך חדש" style="background:#f0fdf4;border-color:#bbf7d0;color:#16a34a;font-weight:700">➕ הוסף</button>
   <button id="scan-btn" onclick="triggerScan()" title="סרוק עכשיו" style="padding:5px 12px;border-radius:6px;border:1.5px solid var(--acc);background:#eff6ff;color:var(--acc);font-size:.75rem;cursor:pointer;font-family:Heebo,sans-serif;font-weight:600;transition:all .15s">🔄 סרוק עכשיו</button>
   <button class="tbtn" id="notif-btn" onclick="openNotifModal()" title="התראות WhatsApp">🔔<span id="notif-badge" style="display:none;background:#ef4444;color:#fff;border-radius:8px;padding:1px 5px;font-size:.62rem;margin-right:3px"></span></button>
   <button class="tbtn" onclick="doLogout()" title="התנתק">🚪</button>
@@ -447,6 +448,7 @@ let sfA={r:false,o:false,g:false,n:false};
 let sortCol='expiry', sortAsc=true;
 let vw=window.innerWidth<=680?'c':'t', sbOpen=window.innerWidth>680;
 let ak='',sid='',sn='מסמכים';
+let _addMode=false;
 
 const FIXED_SID = "1mZZq0QrQVqzNJ66ErJ-h81FSkO_5KIu3orePE5A9BqE";
 const FIXED_KEY = "AIzaSyDJy8tolZu8z-IuMFXSmRfsFFrM_rJkK8w";
@@ -1005,6 +1007,36 @@ function openEditModal(idx, fromArchive){
 function closeEditModal(){
   document.getElementById('edit-modal').classList.remove('open');
   _editIdx = -1;
+  if(_addMode){
+    _addMode = false;
+    document.getElementById('em-save-btn').textContent = '💾 שמור';
+    document.getElementById('em-delete-btn').style.display = '';
+    document.getElementById('em-filename-row').style.display = 'none';
+  }
+}
+
+function openAddModal(){
+  _addMode = true;
+  _editIdx = -1;
+  document.getElementById('em-title').textContent = '➕ הוסף מסמך חדש';
+  document.getElementById('em-info').textContent = 'מלא את פרטי המסמך החדש. שדות חובה: שם לקוח וסוג מסמך.';
+  ['em-client','em-location','em-type','em-link','em-filename-input'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
+  });
+  document.getElementById('em-docdate').value='';
+  document.getElementById('em-expiry').value='';
+  document.getElementById('em-archive-btn').style.display='none';
+  document.getElementById('em-restore-btn').style.display='none';
+  document.getElementById('em-delete-btn').style.display='none';
+  document.getElementById('em-filename-row').style.display='';
+  document.getElementById('em-save-btn').textContent='➕ הוסף מסמך';
+  const apsOk=!!APPS_SCRIPT_URL;
+  const st=document.getElementById('em-aps-status');
+  st.style.display='';
+  st.innerHTML=apsOk
+    ?`<span class="aps-indicator ok">✅ מחובר ל-Google Sheets — יישמר לצמיתות</span>`
+    :`<span class="aps-indicator err">⚠️ Apps Script לא מוגדר — יישמר מקומית בלבד</span>`;
+  document.getElementById('edit-modal').classList.add('open');
 }
 
 function dateToInput(s){
@@ -1023,6 +1055,7 @@ function inputToDate(s){
 
 // ── שמור עריכה ──
 function saveEdit(){
+  if(_addMode){ saveNew(); return; }
   const r = ALL[_editIdx];
   if(!r) return;
   const newData = {
@@ -1048,6 +1081,30 @@ function saveEdit(){
       showToast(ok ? '✅ נשמר ב-Google Sheets' : '✅ נשמר מקומית (Apps Script לא מוגדר)');
     }
   });
+}
+
+// ── הוספת מסמך חדש ──
+async function saveNew(){
+  const client  = document.getElementById('em-client').value.trim();
+  const docType = document.getElementById('em-type').value.trim();
+  if(!client||!docType){showToast('⚠️ שם לקוח וסוג מסמך הם שדות חובה');return;}
+  const newRec = {
+    client,
+    location: document.getElementById('em-location').value.trim(),
+    docType,
+    docDate:  inputToDate(document.getElementById('em-docdate').value),
+    expiry:   inputToDate(document.getElementById('em-expiry').value),
+    link:     document.getElementById('em-link').value.trim(),
+    filename: document.getElementById('em-filename-input').value.trim() || `${docType} - ${client}`,
+    archived: false, _localArc: false
+  };
+  closeEditModal();
+  ALL.push(newRec);
+  if(newRec.client) selClients.add(newRec.client);
+  applyF();
+  showToast('➕ מוסיף...');
+  const ok = await sheetCall('add', newRec);
+  showToast(ok ? '✅ נוסף ב-Google Sheets' : '✅ נוסף מקומית (Apps Script לא מוגדר)');
 }
 
 // ── מחיקה ──
@@ -1537,14 +1594,18 @@ function toggleArchive(){
           <label>קישור לקובץ</label>
           <input id="em-link" type="text" placeholder="קישור OneDrive או נתיב מקומי" dir="ltr">
         </div>
+        <div class="em-field full" id="em-filename-row" style="display:none">
+          <label>שם קובץ</label>
+          <input id="em-filename-input" type="text" placeholder="שם הקובץ (אופציונלי)">
+        </div>
       </div>
       <div id="em-aps-status" style="margin-top:12px;font-size:.75rem;color:var(--t3);display:none"></div>
     </div>
     <div class="em-foot">
-      <button class="em-btn em-save" onclick="saveEdit()">💾 שמור</button>
+      <button class="em-btn em-save" id="em-save-btn" onclick="saveEdit()">💾 שמור</button>
       <button class="em-btn em-archive" id="em-archive-btn" onclick="archiveRow()">📦 לארכיון</button>
       <button class="em-btn em-restore" id="em-restore-btn" onclick="restoreRow()" style="display:none">↩️ שחזר</button>
-      <button class="em-btn em-delete" onclick="deleteRow()">🗑️ מחק</button>
+      <button class="em-btn em-delete" id="em-delete-btn" onclick="deleteRow()">🗑️ מחק</button>
       <button class="em-btn em-cancel" onclick="closeEditModal()">ביטול</button>
     </div>
   </div>
