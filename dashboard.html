@@ -284,6 +284,11 @@ tr:hover td{background:#f8fafc}
   .tbtn{height:26px;padding:0 7px;font-size:.68rem;}
   #scan-btn{padding:4px 8px;font-size:.68rem;}
 }
+#pagination{display:flex;align-items:center;justify-content:center;gap:10px;padding:12px 0;font-size:.82rem;color:var(--t2)}
+#pagination button{padding:5px 13px;border-radius:var(--r2);border:1.5px solid var(--br);background:var(--s2);color:var(--t1);cursor:pointer;font-family:Heebo,sans-serif;font-size:.8rem;transition:all .15s}
+#pagination button:hover:not(:disabled){background:var(--acc);color:#fff;border-color:var(--acc)}
+#pagination button:disabled{opacity:.35;cursor:default}
+#pagination .pg-info{font-weight:600;color:var(--t1)}
 </style>
 </head>
 <body>
@@ -324,7 +329,7 @@ tr:hover td{background:#f8fafc}
   <div id="sidebar">
     <div class="sbh">
       <div class="sbht"><span>לקוחות</span><span id="selc" style="color:var(--acc);font-weight:700;font-size:.7rem"></span></div>
-      <div class="sbsi"><span>🔍</span><input id="sbsrch" placeholder="חפש לקוח..." oninput="renderSB()"></div>
+      <div class="sbsi"><span>🔍</span><input id="sbsrch" placeholder="חפש לקוח..." oninput="_renderSBD()"></div>
     </div>
     <div class="sbact">
       <button class="sbbtn" onclick="selAll()">✓ הכל</button>
@@ -338,7 +343,7 @@ tr:hover td{background:#f8fafc}
     <div id="fbar">
       <div class="sb-wrap" style="max-width:220px">
         <span class="sbi">🔍</span>
-        <input id="fsearch" placeholder="חיפוש חופשי..." oninput="applyF()">
+        <input id="fsearch" placeholder="חיפוש חופשי..." oninput="_applyFD()">
       </div>
       <div class="mf" id="mf-loc">
         <button class="mf-btn" onclick="toggleMF('loc')">
@@ -347,7 +352,7 @@ tr:hover td{background:#f8fafc}
           <span class="mf-arrow">▼</span>
         </button>
         <div class="mf-panel">
-          <div class="mf-search"><input id="mfs-loc" placeholder="חפש מיקום..." oninput="renderMF('loc')" onkeydown="if(event.key==='Enter')toggleMF('loc')" autocomplete="off"></div>
+          <div class="mf-search"><input id="mfs-loc" placeholder="חפש מיקום..." oninput="_renderMFD('loc')" onkeydown="if(event.key==='Enter')toggleMF('loc')" autocomplete="off"></div>
           <div class="mf-acts">
             <button class="mf-act" onclick="mfSelAll('loc')">בחר הכל</button>
             <button class="mf-act" onclick="mfClr('loc')">נקה</button>
@@ -364,7 +369,7 @@ tr:hover td{background:#f8fafc}
           <span class="mf-arrow">▼</span>
         </button>
         <div class="mf-panel">
-          <div class="mf-search"><input id="mfs-type" placeholder="חפש סוג מסמך..." oninput="renderMF('type')" onkeydown="if(event.key==='Enter')toggleMF('type')" autocomplete="off"></div>
+          <div class="mf-search"><input id="mfs-type" placeholder="חפש סוג מסמך..." oninput="_renderMFD('type')" onkeydown="if(event.key==='Enter')toggleMF('type')" autocomplete="off"></div>
           <div class="mf-acts">
             <button class="mf-act" onclick="mfSelAll('type')">בחר הכל</button>
             <button class="mf-act" onclick="mfClr('type')">נקה</button>
@@ -381,7 +386,7 @@ tr:hover td{background:#f8fafc}
           <span class="mf-arrow">▼</span>
         </button>
         <div class="mf-panel">
-          <div class="mf-search"><input id="mfs-file" placeholder="חפש שם קובץ..." oninput="renderMF('file')" onkeydown="if(event.key==='Enter')toggleMF('file')" autocomplete="off"></div>
+          <div class="mf-search"><input id="mfs-file" placeholder="חפש שם קובץ..." oninput="_renderMFD('file')" onkeydown="if(event.key==='Enter')toggleMF('file')" autocomplete="off"></div>
           <div class="mf-acts">
             <button class="mf-act" onclick="mfSelAll('file')">בחר הכל</button>
             <button class="mf-act" onclick="mfClr('file')">נקה</button>
@@ -433,6 +438,7 @@ tr:hover td{background:#f8fafc}
       </div>
     </div>
     <div id="cv"></div>
+    <div id="pagination"></div>
   </div>
 </div>
 
@@ -441,6 +447,11 @@ tr:hover td{background:#f8fafc}
 
 <script>
 let ALL=[], F=[];
+let _page=0; const _PAGE_SIZE=150;
+function _debounce(fn,ms){let t;return function(...a){clearTimeout(t);t=setTimeout(()=>fn.apply(this,a),ms);}}
+const _applyFD=_debounce(()=>applyF(),300);
+const _renderSBD=_debounce(()=>renderSB(),200);
+const _renderMFD=_debounce((id)=>renderMF(id),200);
 let selClients=new Set();
 let mfSel={loc:new Set(), type:new Set(), file:new Set()};
 let sfA={r:false,o:false,g:false,n:false};
@@ -529,6 +540,7 @@ function sl(e){
 }
 
 function applyF(){
+  _page=0;
   F=getSubset(null);
   sortF();
   updateStats();
@@ -862,10 +874,27 @@ async function duplicateAndOpen(idx){
   if(r.link) openDoc(r.link);
 }
 
+function renderPagination(){
+  const el=document.getElementById('pagination');
+  if(!el)return;
+  const pages=Math.ceil(F.length/_PAGE_SIZE);
+  if(pages<=1){el.innerHTML='';return;}
+  const s=_page*_PAGE_SIZE+1, e=Math.min((_page+1)*_PAGE_SIZE,F.length);
+  el.innerHTML=`<button onclick="goPage(${_page-1})" ${_page===0?'disabled':''}>◀ הקודם</button>`
+    +`<span class="pg-info">${s}–${e} מתוך ${F.length}</span>`
+    +`<button onclick="goPage(${_page+1})" ${_page>=pages-1?'disabled':''}>הבא ▶</button>`;
+}
+function goPage(p){
+  const pages=Math.ceil(F.length/_PAGE_SIZE);
+  _page=Math.max(0,Math.min(p,pages-1));
+  renderTable_or_cards();
+  window.scrollTo(0,0);
+}
 function renderTable(){
   const tb=document.getElementById('tbody');
-  if(!F.length){tb.innerHTML=`<tr><td colspan="8"><div class="empty"><div class="ei">🔍</div><div class="et">לא נמצאו תוצאות</div></div></td></tr>`;return}
-  tb.innerHTML=F.map((r,i)=>{
+  if(!F.length){tb.innerHTML=`<tr><td colspan="8"><div class="empty"><div class="ei">🔍</div><div class="et">לא נמצאו תוצאות</div></div></td></tr>`;renderPagination();return}
+  const pageF=F.slice(_page*_PAGE_SIZE,(_page+1)*_PAGE_SIZE);
+  tb.innerHTML=pageF.map((r,i)=>{
     const idx=ALL.indexOf(r);
     const s=st(r.expiry),l=sl(r.expiry);
     const pc=s==='r'?'pr':s==='o'?'po':s==='g'?'pg':'pn';
@@ -874,12 +903,14 @@ function renderTable(){
     const dupBtn=r.link?`<button class="lbtn dup-btn" onclick="duplicateAndOpen(${idx})" title="שכפל רשומה ופתח מסמך">📋 שכפל ופתח</button>`:'';
     return`<tr><td class="tdc">${E(dc(r.client))}</td><td class="tdl" title="${E(r.location)}">${E(r.location||'—')}</td><td class="tdt">${E(r.docType)}</td><td class="tdd">${r.docDate||'—'}</td><td class="tdd">${r.expiry||'—'}</td><td><span class="pill ${pc}">${dot} ${l}</span></td><td style="white-space:nowrap;display:flex;gap:4px;flex-wrap:wrap">${lk}${dupBtn}</td><td style="white-space:nowrap"><button class="edit-btn" onclick="openEditModal(${idx},false)" title="עריכה">✏️</button> <button class="wa-btn" onclick="sendReminderNow(${idx})" title="שלח תזכורת WhatsApp">💬</button></td></tr>`;
   }).join('');
+  renderPagination();
 }
 
 function renderCards(){
   const cv=document.getElementById('cv');
-  if(!F.length){cv.innerHTML=`<div class="empty"><div class="ei">🔍</div><div class="et">לא נמצאו תוצאות</div></div>`;return}
-  cv.innerHTML=F.map(r=>{
+  if(!F.length){cv.innerHTML=`<div class="empty"><div class="ei">🔍</div><div class="et">לא נמצאו תוצאות</div></div>`;renderPagination();return}
+  const pageF=F.slice(_page*_PAGE_SIZE,(_page+1)*_PAGE_SIZE);
+  cv.innerHTML=pageF.map(r=>{
     const idx=ALL.indexOf(r);
     const s=st(r.expiry),l=sl(r.expiry);
     const pc=s==='r'?'pr':s==='o'?'po':s==='g'?'pg':'pn';
@@ -891,6 +922,7 @@ function renderCards(){
     </div><div class="cdates"><div><div class="cdl">תאריך מסמך</div><div class="cdv">${r.docDate||'—'}</div></div><div><div class="cdl">תאריך תוקף</div><div class="cdv">${r.expiry||'—'}</div></div></div>
     <div class="cfoot"><div class="cfn">${E(r.filename||'')}</div><div style="display:flex;gap:6px;flex-wrap:wrap">${lk}${dupBtn}<button class="edit-btn" onclick="openEditModal(${idx},false)" title="עריכה">✏️</button><button class="wa-btn" onclick="sendReminderNow(${idx})">💬 תזכורת</button></div></div></div>`;
   }).join('');
+  renderPagination();
 }
 
 function setView(v){
