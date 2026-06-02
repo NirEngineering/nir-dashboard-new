@@ -284,6 +284,9 @@ tr:hover td{background:#f8fafc}
   .tbtn{height:26px;padding:0 7px;font-size:.68rem;}
   #scan-btn{padding:4px 8px;font-size:.68rem;}
 }
+#btn-dedupe{padding:6px 12px;border-radius:var(--r2);border:1.5px solid var(--br);background:var(--s2);color:var(--t2);font-size:.75rem;cursor:pointer;font-family:Heebo,sans-serif;white-space:nowrap;font-weight:600;transition:all .15s}
+#btn-dedupe.on{background:#f0fdf4;color:#16a34a;border-color:#86efac}
+#btn-dedupe:hover{border-color:var(--acc)}
 #pagination{display:flex;align-items:center;justify-content:center;gap:10px;padding:12px 0;font-size:.82rem;color:var(--t2)}
 #pagination button{padding:5px 13px;border-radius:var(--r2);border:1.5px solid var(--br);background:var(--s2);color:var(--t1);cursor:pointer;font-family:Heebo,sans-serif;font-size:.8rem;transition:all .15s}
 #pagination button:hover:not(:disabled){background:var(--acc);color:#fff;border-color:var(--acc)}
@@ -403,6 +406,7 @@ tr:hover td{background:#f8fafc}
         <button class="sf" id="sf-g" onclick="togSF('g')">🟢 תקין</button>
         <button class="sf" id="sf-n" onclick="togSF('n')">⚪ ללא</button>
       </div>
+      <button id="btn-dedupe" class="on" onclick="togDedupe()" title="הצג רק את הגרסה האחרונה של כל מסמך (לפי לקוח + מיקום + סוג)">✦ עדכניים בלבד</button>
       <button id="fclr" onclick="clrAll()" style="padding:7px 14px;border-radius:var(--r2);border:1.5px solid #fca5a5;background:#fef2f2;color:var(--red);font-size:.75rem;cursor:pointer;font-family:Heebo,sans-serif;white-space:nowrap;font-weight:600;transition:all .15s">✕ נקה הכל</button>
     </div>
 
@@ -449,6 +453,28 @@ tr:hover td{background:#f8fafc}
 <script>
 let ALL=[], F=[];
 let _page=0; const _PAGE_SIZE=150;
+let dedupeLatest=true;
+function _normKey(s){return(s||'').replace(/['"״׳\s]/g,'').toLowerCase();}
+function dedupeF(arr){
+  if(!dedupeLatest)return arr;
+  const map={};
+  arr.forEach(r=>{
+    const key=_normKey(r.client)+'||'+_normKey(r.location)+'||'+_normKey(r.docType);
+    if(!map[key]){map[key]=r;return;}
+    const ex=map[key];
+    const ne=pd(r.expiry),ee=pd(ex.expiry);
+    const nd=pd(r.docDate),ed=pd(ex.docDate);
+    if(ne&&ee){if(ne>ee)map[key]=r;}
+    else if(ne&&!ee){map[key]=r;}
+    else if(!ne&&!ee){if(nd&&ed&&nd>ed)map[key]=r;else if(nd&&!ed)map[key]=r;}
+  });
+  return Object.values(map);
+}
+function togDedupe(){
+  dedupeLatest=!dedupeLatest;
+  document.getElementById('btn-dedupe').classList.toggle('on',dedupeLatest);
+  applyF();
+}
 function _debounce(fn,ms){let t;return function(...a){clearTimeout(t);t=setTimeout(()=>fn.apply(this,a),ms);}}
 const _applyFD=_debounce(()=>applyF(),300);
 const _renderSBD=_debounce(()=>renderSB(),200);
@@ -543,7 +569,7 @@ function sl(e){
 
 function applyF(){
   _page=0;
-  F=getSubset(null);
+  F=dedupeF(getSubset(null));
   sortF();
   updateStats();
   renderSB();
