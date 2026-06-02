@@ -738,28 +738,32 @@ function sortF(){
 
 function renderTable_or_cards(){if(vw==='t')renderTable();else renderCards()}
 
+function _toNirOpen(url){
+  // ממיר קישור onedrive.live.com/?path=... לנתיב מקומי niropen://
+  try{
+    const m=url.match(/[?&]path=([^&]+)/);
+    if(m){
+      const p=decodeURIComponent(m[1]); // /Desktop/לקוחות/client/file.docx
+      return 'niropen://C:/Users/civil/OneDrive'+p;
+    }
+  }catch(e){}
+  return null;
+}
 function openDoc(link){
   if(!link)return;
+  if(link.startsWith('niropen://')){
+    const a=document.createElement('a');a.href=link;document.body.appendChild(a);a.click();document.body.removeChild(a);
+    return;
+  }
   if(link.startsWith('http')){
-    // המרת קישורי OneDrive לפתיחה ישירה
-    let url = link;
-    // קישורי sharepoint/onedrive — המר ל-download/open ישיר
-    if(url.includes('sharepoint.com') && url.includes('sourcedoc=')){
-      // פורמט: https://xxx.sharepoint.com/...?sourcedoc=... → הוסף &action=default לפתיחה ישירה
-      if(!url.includes('action=')) url += (url.includes('?')?'&':'?') + 'action=default';
-    } else if(url.includes('onedrive.live.com')){
-      // קישורי OneDrive personal — המר ל-embed שנפתח ישירות
-      if(url.includes('?cid=')&&url.includes('&id=')){
-        // קישור ישיר — פתח כך
-      } else if(url.includes('/?path=')){
-        url = url.replace('/?path=','/embed?path=');
-      }
-    } else if(url.includes('1drv.ms') || url.includes('onedrive.live.com/redir')){
-      // קישורי share קצרים — פתח ישירות, הדפדפן יטפל בהפניה
+    const nirLink=_toNirOpen(link);
+    if(nirLink){
+      const a=document.createElement('a');a.href=nirLink;document.body.appendChild(a);a.click();document.body.removeChild(a);
+      showToast('📂 פותח קובץ מקומית... <a href="'+link+'" target="_blank" style="color:var(--acc);text-decoration:underline">פתח ב-OneDrive</a>');
+      return;
     }
-    window.open(url,'_blank','noopener,noreferrer');
-  } else {
-    // נתיב מקומי — העתק ללוח
+    window.open(link,'_blank','noopener,noreferrer');
+  }else{
     navigator.clipboard.writeText(link).then(()=>showToast('📋 נתיב הועתק ללוח')).catch(()=>showToast('📋 נתיב: '+link));
   }
 }
@@ -971,7 +975,7 @@ function clrAll(){
   selClients.clear();
   applyF();
 }
-function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000)}
+function showToast(msg,ms){const t=document.getElementById('toast');if(msg.includes('<'))t.innerHTML=msg;else t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),ms||3000)}
 function E(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
 function dc(c){return (c||'').replace(/^[א-ת]+\.[א-ת]+\s+/,'')}
 
