@@ -828,56 +828,108 @@ async function _getMSToken(){
   }
 }
 
+async function _odGetItem(shareUrl, token){
+  // Try 1: shares API (works for proper sharing links)
+  try{
+    const encoded = btoa(unescape(encodeURIComponent(shareUrl)))
+      .replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+    const r = await fetch(
+      `https://graph.microsoft.com/v1.0/shares/u!${encoded}/driveItem?$select=id,name,parentReference`,
+      {headers:{Authorization:`Bearer ${token}`}}
+    );
+    if(r.ok){ const d=await r.json(); console.log('[dup] shares OK:',d.name); return d; }
+    console.warn('[dup] shares API status:', r.status, await r.text());
+  }catch(e){ console.warn('[dup] shares API error:',e.message); }
+
+  // Try 2: extract resid from URL (onedrive.live.com/?resid=CID!ITEMID)
+  const rm = shareUrl.match(/[?&]resid=([A-Za-z0-9]+![0-9]+)/i);
+  if(rm){
+    try{
+      const r = await fetch(
+        `https://graph.microsoft.com/v1.0/me/drive/items/${rm[1]}?$select=id,name,parentReference`,
+        {headers:{Authorization:`Bearer ${token}`}}
+      );
+      if(r.ok){ const d=await r.json(); console.log('[dup] resid OK:',d.name); return d; }
+      console.warn('[dup] resid API status:', r.status, await r.text());
+    }catch(e){ console.warn('[dup] resid API error:',e.message); }
+  }
+
+  return null;
+}
+
 async function _duplicateOneDriveFile(shareUrl, token){
-  // base64url encode the sharing URL
-  const encoded = btoa(shareUrl).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
-  const itemRes = await fetch(
-    `https://graph.microsoft.com/v1.0/shares/u!${encoded}/driveItem?$select=id,name,parentReference`,
-    {headers:{Authorization:`Bearer ${token}`}}
-  );
-  if(!itemRes.ok) throw new Error('לא ניתן לאתר את הקובץ ב-OneDrive. ודא שהקישור תקין.');
-  const item = await itemRes.json();
+  showToast('🔍 שלב 1/3: מאתר קובץ ב-OneDrive...',8000);
+  const item = await _odGetItem(shareUrl, token);
+  if(!item) throw new Error('לא ניתן לאתר את הקובץ. בדוק שהקישור תקין ושיש הרשאה לגשת אליו.');
 
-  const m = item.name.match(/^(.*?)(\.[^.]+)?$/);
-  const newName = (m[1]||item.name) + ' (עותק)' + (m[2]||'');
+  const ext = (item.name.match(/(\.[^.]+)$/) || [''])[0];
+  const base = item.name.slice(0, item.name.length - ext.length);
+  const newName = base + ' (עותק)' + ext;
 
+  showToast('📋 שלב 2/3: מעתיק קובץ...',15000);
   const copyRes = await fetch(
     `https://graph.microsoft.com/v1.0/drives/${item.parentReference.driveId}/items/${item.id}/copy`,
     {
       method:'POST',
-      headers:{
-        Authorization:`Bearer ${token}`,
-        'Content-Type':'application/json',
-        Prefer:'respond-async'
-      },
-      body:JSON.stringify({
-        name: newName,
-        parentReference:{driveId:item.parentReference.driveId, id:item.parentReference.id}
-      })
+      headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json',Prefer:'respond-async'},
+      body:JSON.stringify({name:newName, parentReference:{driveId:item.parentReference.driveId, id:item.parentReference.id}})
     }
   );
-  if(copyRes.status!==202) throw new Error('שגיאה בשכפול הקובץ ב-OneDrive');
+  console.log('[dup] copy status:', copyRes.status);
+  if(copyRes.status===200){
+    const d=await copyRes.json();
+    console.log('[dup] sync copy done:', d.webUrl);
+    return {webUrl:d.webUrl, downloadUrl:d['@microsoft.graph.downloadUrl']||null};
+  }
+  if(copyRes.status!==202){
+    const err=await copyRes.text(); console.warn('[dup] copy error body:',err);
+    throw new Error('שגיאה בשכפול ('+copyRes.status+'): '+err.slice(0,120));
+  }
 
   const monitorUrl = copyRes.headers.get('Location');
-  if(!monitorUrl) return null;
-
-  // Poll until done (max ~30s)
-  for(let i=0;i<15;i++){
-    await new Promise(r=>setTimeout(r,2000));
-    const mData = await (await fetch(monitorUrl)).json();
-    if(mData.status==='completed'){
-      if(mData.resourceId){
-        const ni = await fetch(
-          `https://graph.microsoft.com/v1.0/me/drive/items/${mData.resourceId}?$select=webUrl,@microsoft.graph.downloadUrl`,
-          {headers:{Authorization:`Bearer ${token}`}}
-        );
-        if(ni.ok){const d=await ni.json();return {webUrl:d.webUrl, downloadUrl:d['@microsoft.graph.downloadUrl']||null};}
+  console.log('[dup] monitor URL:', monitorUrl);
+  if(!monitorUrl){
+    showToast('⏳ שלב 3/3: ממתין להשלמת העתקה...',20000);
+    await new Promise(r=>setTimeout(r,5000));
+    try{
+      const sr = await fetch(
+        `https://graph.microsoft.com/v1.0/me/drive/search(q='${encodeURIComponent(newName)}')?$select=id,name,webUrl,@microsoft.graph.downloadUrl&$top=5`,
+        {headers:{Authorization:`Bearer ${token}`}}
+      );
+      if(sr.ok){
+        const sd=await sr.json();
+        const found=sd.value&&sd.value.find(x=>x.name===newName);
+        if(found){ console.log('[dup] found via search:',found.webUrl); return {webUrl:found.webUrl,downloadUrl:found['@microsoft.graph.downloadUrl']||null}; }
       }
-      return null;
-    }
-    if(mData.status==='failed') throw new Error('שכפול הקובץ נכשל ב-OneDrive');
+    }catch(e){ console.warn('[dup] search fallback error:',e.message); }
+    return null;
   }
-  return null; // timeout — פותח את המקור
+
+  showToast('⏳ שלב 3/3: ממתין להשלמת העתקה...',30000);
+  for(let i=0;i<20;i++){
+    await new Promise(r=>setTimeout(r,2000));
+    try{
+      const mRes=await fetch(monitorUrl);
+      const mData=await mRes.json();
+      console.log('[dup] monitor poll',i,mData.status,mData.percentageComplete||'');
+      if(mData.status==='completed'){
+        const rid=mData.resourceId;
+        if(rid){
+          const ni=await fetch(
+            `https://graph.microsoft.com/v1.0/me/drive/items/${rid}?$select=webUrl,@microsoft.graph.downloadUrl`,
+            {headers:{Authorization:`Bearer ${token}`}}
+          );
+          if(ni.ok){const d=await ni.json();return {webUrl:d.webUrl,downloadUrl:d['@microsoft.graph.downloadUrl']||null};}
+        }
+        return null;
+      }
+      if(mData.status==='failed') throw new Error('שכפול נכשל: '+(mData.error&&mData.error.message||'שגיאה לא ידועה'));
+    }catch(e){
+      if(e.message.startsWith('שכפול'))throw e;
+      console.warn('[dup] monitor poll error:',e.message);
+    }
+  }
+  return null; // timeout
 }
 
 async function duplicateAndOpen(idx){
@@ -896,20 +948,20 @@ async function duplicateAndOpen(idx){
     try{ token = await _getMSToken(); }catch(e){ showToast('❌ שגיאת התחברות: '+(e&&e.message||e)); return; }
     if(!token) return;
 
-    showToast('📋 משכפל קובץ ב-OneDrive...');
     try{
       const dupResult = await _duplicateOneDriveFile(r.link, token);
       const newWebUrl = dupResult?.webUrl || null;
       const newDlUrl  = dupResult?.downloadUrl || null;
+      console.log('[dup] done — webUrl:', newWebUrl, 'dlUrl:', newDlUrl);
       const copy = Object.assign({}, r);
       copy.filename = r.filename ? r.filename.replace(/(\.[^.]+)?$/, m=>' (עותק)'+m) : r.filename;
       if(newWebUrl) copy.link = newWebUrl;
       ALL.push(copy);
       applyF();
-      sheetCall('duplicate', {filename:r.filename, client:r.client});
       showDupChoice(newWebUrl || r.link, newDlUrl);
     }catch(e){
-      showToast('❌ ' + e.message);
+      console.error('[dup] failed:', e);
+      showToast('❌ שכפול נכשל: ' + (e.message||e), 6000);
     }
     return;
   }
