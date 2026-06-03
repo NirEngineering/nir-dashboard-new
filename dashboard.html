@@ -286,6 +286,16 @@ tr:hover td{background:#f8fafc}
 }
 #btn-dedupe{padding:6px 12px;border-radius:var(--r2);border:1.5px solid var(--br);background:var(--s2);color:var(--t2);font-size:.75rem;cursor:pointer;font-family:Heebo,sans-serif;white-space:nowrap;font-weight:600;transition:all .15s}
 #btn-dedupe.on{background:#f0fdf4;color:#16a34a;border-color:#86efac}
+#dup-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:9998}
+#dup-choice{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:14px;box-shadow:0 8px 40px rgba(0,0,0,.2);padding:26px 30px;z-index:9999;text-align:center;min-width:290px;direction:rtl;font-family:Heebo,sans-serif}
+#dup-choice h3{margin:0 0 5px;font-size:1rem;font-weight:800}
+#dup-choice p{color:var(--t2);font-size:.82rem;margin:0 0 18px;line-height:1.5}
+.dc-btn{display:block;width:100%;padding:11px 16px;border-radius:9px;font-family:Heebo,sans-serif;font-size:.88rem;font-weight:700;cursor:pointer;margin-bottom:9px;border:none;transition:all .15s}
+.dc-btn:last-child{margin-bottom:0}
+.dc-editor{background:#4f46e5;color:#fff}
+.dc-editor:hover{background:#4338ca}
+.dc-word{background:var(--s2);color:var(--t1);border:1.5px solid var(--br)!important}
+.dc-word:hover{background:#f1f5f9}
 #btn-dedupe:hover{border-color:var(--acc)}
 #pagination{display:flex;align-items:center;justify-content:center;gap:10px;padding:12px 0;font-size:.82rem;color:var(--t2)}
 #pagination button{padding:5px 13px;border-radius:var(--r2);border:1.5px solid var(--br);background:var(--s2);color:var(--t1);cursor:pointer;font-family:Heebo,sans-serif;font-size:.8rem;transition:all .15s}
@@ -447,6 +457,13 @@ tr:hover td{background:#f8fafc}
   </div>
 </div>
 
+<div id="dup-overlay" onclick="closeDupChoice()"></div>
+<div id="dup-choice">
+  <h3>✅ הקובץ שוכפל בהצלחה!</h3>
+  <p>כיצד תרצה לפתוח את העותק לעריכה?</p>
+  <button class="dc-btn dc-editor" id="dc-btn-editor" onclick="openDupInEditor()">✏️ פתח בעורך ניר</button>
+  <button class="dc-btn dc-word" onclick="openDupInWord()">☁️ פתח ב-Word Online</button>
+</div>
 <div id="toast"></div>
 <div id="loading" style="display:none"><div class="spin"></div><div style="color:var(--t2);font-size:.85rem">טוען...</div></div>
 
@@ -851,10 +868,10 @@ async function _duplicateOneDriveFile(shareUrl, token){
     if(mData.status==='completed'){
       if(mData.resourceId){
         const ni = await fetch(
-          `https://graph.microsoft.com/v1.0/me/drive/items/${mData.resourceId}?$select=webUrl`,
+          `https://graph.microsoft.com/v1.0/me/drive/items/${mData.resourceId}?$select=webUrl,@microsoft.graph.downloadUrl`,
           {headers:{Authorization:`Bearer ${token}`}}
         );
-        if(ni.ok){const d=await ni.json();return d.webUrl;}
+        if(ni.ok){const d=await ni.json();return {webUrl:d.webUrl, downloadUrl:d['@microsoft.graph.downloadUrl']||null};}
       }
       return null;
     }
@@ -881,15 +898,16 @@ async function duplicateAndOpen(idx){
 
     showToast('📋 משכפל קובץ ב-OneDrive...');
     try{
-      const newUrl = await _duplicateOneDriveFile(r.link, token);
+      const dupResult = await _duplicateOneDriveFile(r.link, token);
+      const newWebUrl = dupResult?.webUrl || null;
+      const newDlUrl  = dupResult?.downloadUrl || null;
       const copy = Object.assign({}, r);
       copy.filename = r.filename ? r.filename.replace(/(\.[^.]+)?$/, m=>' (עותק)'+m) : r.filename;
-      if(newUrl) copy.link = newUrl;
+      if(newWebUrl) copy.link = newWebUrl;
       ALL.push(copy);
       applyF();
-      showToast(newUrl ? '✅ הקובץ שוכפל ב-OneDrive!' : '✅ שכפול הושלם (עשוי לקחת כמה שניות)');
       sheetCall('duplicate', {filename:r.filename, client:r.client});
-      openDoc(newUrl || r.link);
+      showDupChoice(newWebUrl || r.link, newDlUrl);
     }catch(e){
       showToast('❌ ' + e.message);
     }
@@ -905,6 +923,29 @@ async function duplicateAndOpen(idx){
   const ok = await sheetCall('duplicate', {filename:r.filename, client:r.client});
   showToast(ok ? '✅ שוכפל ב-Google Sheets' : '✅ שוכפל מקומית');
   if(r.link) openDoc(r.link);
+}
+
+const NIR_EDITOR_URL = 'https://nirengineering.github.io/nir-reports/';
+let _dcWordUrl=null, _dcDlUrl=null;
+function showDupChoice(wordUrl, dlUrl){
+  _dcWordUrl=wordUrl; _dcDlUrl=dlUrl;
+  const editorBtn=document.getElementById('dc-btn-editor');
+  if(editorBtn) editorBtn.style.display=dlUrl?'':'none';
+  document.getElementById('dup-overlay').style.display='block';
+  document.getElementById('dup-choice').style.display='block';
+}
+function closeDupChoice(){
+  document.getElementById('dup-overlay').style.display='none';
+  document.getElementById('dup-choice').style.display='none';
+  _dcWordUrl=null; _dcDlUrl=null;
+}
+function openDupInEditor(){
+  if(_dcDlUrl) window.open(NIR_EDITOR_URL+'?file='+encodeURIComponent(_dcDlUrl),'_blank','noopener,noreferrer');
+  closeDupChoice();
+}
+function openDupInWord(){
+  if(_dcWordUrl) openDoc(_dcWordUrl);
+  closeDupChoice();
 }
 
 function renderPagination(){
