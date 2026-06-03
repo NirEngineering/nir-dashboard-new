@@ -284,6 +284,19 @@ tr:hover td{background:#f8fafc}
   .tbtn{height:26px;padding:0 7px;font-size:.68rem;}
   #scan-btn{padding:4px 8px;font-size:.68rem;}
 }
+#btn-dedupe{padding:6px 12px;border-radius:var(--r2);border:1.5px solid var(--br);background:var(--s2);color:var(--t2);font-size:.75rem;cursor:pointer;font-family:Heebo,sans-serif;white-space:nowrap;font-weight:600;transition:all .15s}
+#btn-dedupe.on{background:#f0fdf4;color:#16a34a;border-color:#86efac}
+#dup-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:9998}
+#dup-choice{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:14px;box-shadow:0 8px 40px rgba(0,0,0,.2);padding:26px 30px;z-index:9999;text-align:center;min-width:290px;direction:rtl;font-family:Heebo,sans-serif}
+#dup-choice h3{margin:0 0 5px;font-size:1rem;font-weight:800}
+#dup-choice p{color:var(--t2);font-size:.82rem;margin:0 0 18px;line-height:1.5}
+.dc-btn{display:block;width:100%;padding:11px 16px;border-radius:9px;font-family:Heebo,sans-serif;font-size:.88rem;font-weight:700;cursor:pointer;margin-bottom:9px;border:none;transition:all .15s}
+.dc-btn:last-child{margin-bottom:0}
+.dc-editor{background:#4f46e5;color:#fff}
+.dc-editor:hover{background:#4338ca}
+.dc-word{background:var(--s2);color:var(--t1);border:1.5px solid var(--br)!important}
+.dc-word:hover{background:#f1f5f9}
+#btn-dedupe:hover{border-color:var(--acc)}
 #pagination{display:flex;align-items:center;justify-content:center;gap:10px;padding:12px 0;font-size:.82rem;color:var(--t2)}
 #pagination button{padding:5px 13px;border-radius:var(--r2);border:1.5px solid var(--br);background:var(--s2);color:var(--t1);cursor:pointer;font-family:Heebo,sans-serif;font-size:.8rem;transition:all .15s}
 #pagination button:hover:not(:disabled){background:var(--acc);color:#fff;border-color:var(--acc)}
@@ -320,6 +333,7 @@ tr:hover td{background:#f8fafc}
   <button class="tbtn" id="vbc" onclick="setView('c')">🃏 כרטיסיות</button>
   <button class="tbtn" onclick="toggleSB()">☰</button>
   <button class="tbtn" id="arc-btn" onclick="toggleArchive()">📦 ארכיון <span id="arc-count" style="background:var(--gry);color:#fff;border-radius:8px;padding:1px 6px;font-size:.65rem;margin-right:3px"></span></button>
+  <button class="tbtn" onclick="openAddModal()" title="הוסף מסמך חדש" style="background:#f0fdf4;border-color:#bbf7d0;color:#16a34a;font-weight:700">➕ הוסף</button>
   <button id="scan-btn" onclick="triggerScan()" title="סרוק עכשיו" style="padding:5px 12px;border-radius:6px;border:1.5px solid var(--acc);background:#eff6ff;color:var(--acc);font-size:.75rem;cursor:pointer;font-family:Heebo,sans-serif;font-weight:600;transition:all .15s">🔄 סרוק עכשיו</button>
   <button class="tbtn" id="notif-btn" onclick="openNotifModal()" title="התראות WhatsApp">🔔<span id="notif-badge" style="display:none;background:#ef4444;color:#fff;border-radius:8px;padding:1px 5px;font-size:.62rem;margin-right:3px"></span></button>
   <button class="tbtn" onclick="doLogout()" title="התנתק">🚪</button>
@@ -402,6 +416,7 @@ tr:hover td{background:#f8fafc}
         <button class="sf" id="sf-g" onclick="togSF('g')">🟢 תקין</button>
         <button class="sf" id="sf-n" onclick="togSF('n')">⚪ ללא</button>
       </div>
+      <button id="btn-dedupe" class="on" onclick="togDedupe()" title="הצג רק את הגרסה האחרונה של כל מסמך (לפי לקוח + מיקום + סוג)">✦ עדכניים בלבד</button>
       <button id="fclr" onclick="clrAll()" style="padding:7px 14px;border-radius:var(--r2);border:1.5px solid #fca5a5;background:#fef2f2;color:var(--red);font-size:.75rem;cursor:pointer;font-family:Heebo,sans-serif;white-space:nowrap;font-weight:600;transition:all .15s">✕ נקה הכל</button>
     </div>
 
@@ -442,12 +457,41 @@ tr:hover td{background:#f8fafc}
   </div>
 </div>
 
+<div id="dup-overlay" onclick="closeDupChoice()"></div>
+<div id="dup-choice">
+  <h3>✅ הקובץ שוכפל בהצלחה!</h3>
+  <p>כיצד תרצה לפתוח את העותק לעריכה?</p>
+  <button class="dc-btn dc-editor" id="dc-btn-editor" onclick="openDupInEditor()">✏️ פתח בעורך ניר</button>
+  <button class="dc-btn dc-word" onclick="openDupInWord()">☁️ פתח ב-Word Online</button>
+</div>
 <div id="toast"></div>
 <div id="loading" style="display:none"><div class="spin"></div><div style="color:var(--t2);font-size:.85rem">טוען...</div></div>
 
 <script>
 let ALL=[], F=[];
 let _page=0; const _PAGE_SIZE=150;
+let dedupeLatest=true;
+function _normKey(s){return(s||'').replace(/['"״׳\s]/g,'').toLowerCase();}
+function dedupeF(arr){
+  if(!dedupeLatest)return arr;
+  const map={};
+  arr.forEach(r=>{
+    const key=_normKey(r.client)+'||'+_normKey(r.location)+'||'+_normKey(r.docType);
+    if(!map[key]){map[key]=r;return;}
+    const ex=map[key];
+    const ne=pd(r.expiry),ee=pd(ex.expiry);
+    const nd=pd(r.docDate),ed=pd(ex.docDate);
+    if(ne&&ee){if(ne>ee)map[key]=r;}
+    else if(ne&&!ee){map[key]=r;}
+    else if(!ne&&!ee){if(nd&&ed&&nd>ed)map[key]=r;else if(nd&&!ed)map[key]=r;}
+  });
+  return Object.values(map);
+}
+function togDedupe(){
+  dedupeLatest=!dedupeLatest;
+  document.getElementById('btn-dedupe').classList.toggle('on',dedupeLatest);
+  applyF();
+}
 function _debounce(fn,ms){let t;return function(...a){clearTimeout(t);t=setTimeout(()=>fn.apply(this,a),ms);}}
 const _applyFD=_debounce(()=>applyF(),300);
 const _renderSBD=_debounce(()=>renderSB(),200);
@@ -458,12 +502,13 @@ let sfA={r:false,o:false,g:false,n:false};
 let sortCol='expiry', sortAsc=true;
 let vw=window.innerWidth<=680?'c':'t', sbOpen=window.innerWidth>680;
 let ak='',sid='',sn='מסמכים';
+let _addMode=false;
 
-const FIXED_SID = "1rOFSo4vz8BoGBydWGgTTMM5xT6Bpm81NLd_1fTTm37Q";
+const FIXED_SID = "1mZZq0QrQVqzNJ66ErJ-h81FSkO_5KIu3orePE5A9BqE";
 const FIXED_KEY = "AIzaSyDJy8tolZu8z-IuMFXSmRfsFFrM_rJkK8w";
 const ACCESS_CODE = "2157";
 // ← הדבק כאן את ה-URL שתקבל מ-Apps Script לאחר Deployment
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzsfvTN0f--c_FxN-_uhsR4IETdv4sF7gepw_kWyVgT3jtMCvFPw7skvpx9TiyGEYBY/exec";
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyGEyeOXv7y0-HyIEcxN5sN3oof0IzG3W6_lCx3cvMjdlbn2VAqEokrDmzXcUAmMBeO/exec";
 // ← הדבק כאן את ה-Application (client) ID שתקבל מ-Azure Portal לאחר יצירת App Registration
 const MSAL_CLIENT_ID = '69402cf8-ab62-4632-b20f-ec418a8431d7';
 
@@ -541,7 +586,7 @@ function sl(e){
 
 function applyF(){
   _page=0;
-  F=getSubset(null);
+  F=dedupeF(getSubset(null));
   sortF();
   updateStats();
   renderSB();
@@ -710,28 +755,32 @@ function sortF(){
 
 function renderTable_or_cards(){if(vw==='t')renderTable();else renderCards()}
 
+function _toNirOpen(url){
+  // ממיר קישור onedrive.live.com/?path=... לנתיב מקומי niropen://
+  try{
+    const m=url.match(/[?&]path=([^&]+)/);
+    if(m){
+      const p=decodeURIComponent(m[1]); // /Desktop/לקוחות/client/file.docx
+      return 'niropen://C:/Users/civil/OneDrive'+p;
+    }
+  }catch(e){}
+  return null;
+}
 function openDoc(link){
   if(!link)return;
+  if(link.startsWith('niropen://')){
+    const a=document.createElement('a');a.href=link;document.body.appendChild(a);a.click();document.body.removeChild(a);
+    return;
+  }
   if(link.startsWith('http')){
-    // המרת קישורי OneDrive לפתיחה ישירה
-    let url = link;
-    // קישורי sharepoint/onedrive — המר ל-download/open ישיר
-    if(url.includes('sharepoint.com') && url.includes('sourcedoc=')){
-      // פורמט: https://xxx.sharepoint.com/...?sourcedoc=... → הוסף &action=default לפתיחה ישירה
-      if(!url.includes('action=')) url += (url.includes('?')?'&':'?') + 'action=default';
-    } else if(url.includes('onedrive.live.com')){
-      // קישורי OneDrive personal — המר ל-embed שנפתח ישירות
-      if(url.includes('?cid=')&&url.includes('&id=')){
-        // קישור ישיר — פתח כך
-      } else if(url.includes('/?path=')){
-        url = url.replace('/?path=','/embed?path=');
-      }
-    } else if(url.includes('1drv.ms') || url.includes('onedrive.live.com/redir')){
-      // קישורי share קצרים — פתח ישירות, הדפדפן יטפל בהפניה
+    const nirLink=_toNirOpen(link);
+    if(nirLink){
+      const a=document.createElement('a');a.href=nirLink;document.body.appendChild(a);a.click();document.body.removeChild(a);
+      showToast('📂 פותח קובץ מקומית... <a href="'+link+'" target="_blank" style="color:var(--acc);text-decoration:underline">פתח ב-OneDrive</a>');
+      return;
     }
-    window.open(url,'_blank','noopener,noreferrer');
-  } else {
-    // נתיב מקומי — העתק ללוח
+    window.open(link,'_blank','noopener,noreferrer');
+  }else{
     navigator.clipboard.writeText(link).then(()=>showToast('📋 נתיב הועתק ללוח')).catch(()=>showToast('📋 נתיב: '+link));
   }
 }
@@ -751,7 +800,7 @@ function _loadScript(src){
 async function _getMSToken(){
   if(!MSAL_CLIENT_ID){showToast('⚠️ יש להגדיר MSAL_CLIENT_ID בקוד');return null;}
   if(!_msalApp){
-    await _loadScript('https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js');
+    await _loadScript('https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js');
     _msalApp = new msal.PublicClientApplication({
       auth:{
         clientId: MSAL_CLIENT_ID,
@@ -772,62 +821,115 @@ async function _getMSToken(){
   try{
     const r = await _msalApp.loginPopup({scopes});
     return r.accessToken;
-  }catch(_){
-    showToast('❌ ביטול התחברות Microsoft');
+  }catch(e){
+    const msg = e && e.message ? e.message : String(e);
+    showToast('❌ ' + msg.slice(0,80));
     return null;
   }
 }
 
+async function _odGetItem(shareUrl, token){
+  // Try 1: shares API (works for proper sharing links)
+  try{
+    const encoded = btoa(unescape(encodeURIComponent(shareUrl)))
+      .replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+    const r = await fetch(
+      `https://graph.microsoft.com/v1.0/shares/u!${encoded}/driveItem?$select=id,name,parentReference`,
+      {headers:{Authorization:`Bearer ${token}`}}
+    );
+    if(r.ok){ const d=await r.json(); console.log('[dup] shares OK:',d.name); return d; }
+    console.warn('[dup] shares API status:', r.status, await r.text());
+  }catch(e){ console.warn('[dup] shares API error:',e.message); }
+
+  // Try 2: extract resid from URL (onedrive.live.com/?resid=CID!ITEMID)
+  const rm = shareUrl.match(/[?&]resid=([A-Za-z0-9]+![0-9]+)/i);
+  if(rm){
+    try{
+      const r = await fetch(
+        `https://graph.microsoft.com/v1.0/me/drive/items/${rm[1]}?$select=id,name,parentReference`,
+        {headers:{Authorization:`Bearer ${token}`}}
+      );
+      if(r.ok){ const d=await r.json(); console.log('[dup] resid OK:',d.name); return d; }
+      console.warn('[dup] resid API status:', r.status, await r.text());
+    }catch(e){ console.warn('[dup] resid API error:',e.message); }
+  }
+
+  return null;
+}
+
 async function _duplicateOneDriveFile(shareUrl, token){
-  // base64url encode the sharing URL
-  const encoded = btoa(shareUrl).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
-  const itemRes = await fetch(
-    `https://graph.microsoft.com/v1.0/shares/u!${encoded}/driveItem?$select=id,name,parentReference`,
-    {headers:{Authorization:`Bearer ${token}`}}
-  );
-  if(!itemRes.ok) throw new Error('לא ניתן לאתר את הקובץ ב-OneDrive. ודא שהקישור תקין.');
-  const item = await itemRes.json();
+  showToast('🔍 שלב 1/3: מאתר קובץ ב-OneDrive...',8000);
+  const item = await _odGetItem(shareUrl, token);
+  if(!item) throw new Error('לא ניתן לאתר את הקובץ. בדוק שהקישור תקין ושיש הרשאה לגשת אליו.');
 
-  const m = item.name.match(/^(.*?)(\.[^.]+)?$/);
-  const newName = (m[1]||item.name) + ' (עותק)' + (m[2]||'');
+  const ext = (item.name.match(/(\.[^.]+)$/) || [''])[0];
+  const base = item.name.slice(0, item.name.length - ext.length);
+  const newName = base + ' (עותק)' + ext;
 
+  showToast('📋 שלב 2/3: מעתיק קובץ...',15000);
   const copyRes = await fetch(
     `https://graph.microsoft.com/v1.0/drives/${item.parentReference.driveId}/items/${item.id}/copy`,
     {
       method:'POST',
-      headers:{
-        Authorization:`Bearer ${token}`,
-        'Content-Type':'application/json',
-        Prefer:'respond-async'
-      },
-      body:JSON.stringify({
-        name: newName,
-        parentReference:{driveId:item.parentReference.driveId, id:item.parentReference.id}
-      })
+      headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json',Prefer:'respond-async'},
+      body:JSON.stringify({name:newName, parentReference:{driveId:item.parentReference.driveId, id:item.parentReference.id}})
     }
   );
-  if(copyRes.status!==202) throw new Error('שגיאה בשכפול הקובץ ב-OneDrive');
+  console.log('[dup] copy status:', copyRes.status);
+  if(copyRes.status===200){
+    const d=await copyRes.json();
+    console.log('[dup] sync copy done:', d.webUrl);
+    return {webUrl:d.webUrl, downloadUrl:d['@microsoft.graph.downloadUrl']||null};
+  }
+  if(copyRes.status!==202){
+    const err=await copyRes.text(); console.warn('[dup] copy error body:',err);
+    throw new Error('שגיאה בשכפול ('+copyRes.status+'): '+err.slice(0,120));
+  }
 
   const monitorUrl = copyRes.headers.get('Location');
-  if(!monitorUrl) return null;
-
-  // Poll until done (max ~30s)
-  for(let i=0;i<15;i++){
-    await new Promise(r=>setTimeout(r,2000));
-    const mData = await (await fetch(monitorUrl)).json();
-    if(mData.status==='completed'){
-      if(mData.resourceId){
-        const ni = await fetch(
-          `https://graph.microsoft.com/v1.0/me/drive/items/${mData.resourceId}?$select=webUrl`,
-          {headers:{Authorization:`Bearer ${token}`}}
-        );
-        if(ni.ok){const d=await ni.json();return d.webUrl;}
+  console.log('[dup] monitor URL:', monitorUrl);
+  if(!monitorUrl){
+    showToast('⏳ שלב 3/3: ממתין להשלמת העתקה...',20000);
+    await new Promise(r=>setTimeout(r,5000));
+    try{
+      const sr = await fetch(
+        `https://graph.microsoft.com/v1.0/me/drive/search(q='${encodeURIComponent(newName)}')?$select=id,name,webUrl,@microsoft.graph.downloadUrl&$top=5`,
+        {headers:{Authorization:`Bearer ${token}`}}
+      );
+      if(sr.ok){
+        const sd=await sr.json();
+        const found=sd.value&&sd.value.find(x=>x.name===newName);
+        if(found){ console.log('[dup] found via search:',found.webUrl); return {webUrl:found.webUrl,downloadUrl:found['@microsoft.graph.downloadUrl']||null}; }
       }
-      return null;
-    }
-    if(mData.status==='failed') throw new Error('שכפול הקובץ נכשל ב-OneDrive');
+    }catch(e){ console.warn('[dup] search fallback error:',e.message); }
+    return null;
   }
-  return null; // timeout — פותח את המקור
+
+  showToast('⏳ שלב 3/3: ממתין להשלמת העתקה...',30000);
+  for(let i=0;i<20;i++){
+    await new Promise(r=>setTimeout(r,2000));
+    try{
+      const mRes=await fetch(monitorUrl);
+      const mData=await mRes.json();
+      console.log('[dup] monitor poll',i,mData.status,mData.percentageComplete||'');
+      if(mData.status==='completed'){
+        const rid=mData.resourceId;
+        if(rid){
+          const ni=await fetch(
+            `https://graph.microsoft.com/v1.0/me/drive/items/${rid}?$select=webUrl,@microsoft.graph.downloadUrl`,
+            {headers:{Authorization:`Bearer ${token}`}}
+          );
+          if(ni.ok){const d=await ni.json();return {webUrl:d.webUrl,downloadUrl:d['@microsoft.graph.downloadUrl']||null};}
+        }
+        return null;
+      }
+      if(mData.status==='failed') throw new Error('שכפול נכשל: '+(mData.error&&mData.error.message||'שגיאה לא ידועה'));
+    }catch(e){
+      if(e.message.startsWith('שכפול'))throw e;
+      console.warn('[dup] monitor poll error:',e.message);
+    }
+  }
+  return null; // timeout
 }
 
 async function duplicateAndOpen(idx){
@@ -843,22 +945,23 @@ async function duplicateAndOpen(idx){
   if(isOneDrive && MSAL_CLIENT_ID){
     showToast('🔑 מתחבר ל-OneDrive...');
     let token;
-    try{ token = await _getMSToken(); }catch(e){ showToast('❌ שגיאת התחברות'); return; }
+    try{ token = await _getMSToken(); }catch(e){ showToast('❌ שגיאת התחברות: '+(e&&e.message||e)); return; }
     if(!token) return;
 
-    showToast('📋 משכפל קובץ ב-OneDrive...');
     try{
-      const newUrl = await _duplicateOneDriveFile(r.link, token);
+      const dupResult = await _duplicateOneDriveFile(r.link, token);
+      const newWebUrl = dupResult?.webUrl || null;
+      const newDlUrl  = dupResult?.downloadUrl || null;
+      console.log('[dup] done — webUrl:', newWebUrl, 'dlUrl:', newDlUrl);
       const copy = Object.assign({}, r);
       copy.filename = r.filename ? r.filename.replace(/(\.[^.]+)?$/, m=>' (עותק)'+m) : r.filename;
-      if(newUrl) copy.link = newUrl;
+      if(newWebUrl) copy.link = newWebUrl;
       ALL.push(copy);
       applyF();
-      showToast(newUrl ? '✅ הקובץ שוכפל ב-OneDrive!' : '✅ שכפול הושלם (עשוי לקחת כמה שניות)');
-      sheetCall('duplicate', {filename:r.filename, client:r.client});
-      openDoc(newUrl || r.link);
+      showDupChoice(newWebUrl || r.link, newDlUrl);
     }catch(e){
-      showToast('❌ ' + e.message);
+      console.error('[dup] failed:', e);
+      showToast('❌ שכפול נכשל: ' + (e.message||e), 6000);
     }
     return;
   }
@@ -872,6 +975,29 @@ async function duplicateAndOpen(idx){
   const ok = await sheetCall('duplicate', {filename:r.filename, client:r.client});
   showToast(ok ? '✅ שוכפל ב-Google Sheets' : '✅ שוכפל מקומית');
   if(r.link) openDoc(r.link);
+}
+
+const NIR_EDITOR_URL = 'https://nirengineering.github.io/nir-reports/';
+let _dcWordUrl=null, _dcDlUrl=null;
+function showDupChoice(wordUrl, dlUrl){
+  _dcWordUrl=wordUrl; _dcDlUrl=dlUrl;
+  const editorBtn=document.getElementById('dc-btn-editor');
+  if(editorBtn) editorBtn.style.display=dlUrl?'':'none';
+  document.getElementById('dup-overlay').style.display='block';
+  document.getElementById('dup-choice').style.display='block';
+}
+function closeDupChoice(){
+  document.getElementById('dup-overlay').style.display='none';
+  document.getElementById('dup-choice').style.display='none';
+  _dcWordUrl=null; _dcDlUrl=null;
+}
+function openDupInEditor(){
+  if(_dcDlUrl) window.open(NIR_EDITOR_URL+'?file='+encodeURIComponent(_dcDlUrl),'_blank','noopener,noreferrer');
+  closeDupChoice();
+}
+function openDupInWord(){
+  if(_dcWordUrl) openDoc(_dcWordUrl);
+  closeDupChoice();
 }
 
 function renderPagination(){
@@ -920,7 +1046,7 @@ function renderCards(){
     return`<div class="card ${cc}"><div class="ct"><div class="ctype">${E(r.docType)}</div><span class="pill ${pc}">${l}</span></div>
     <div class="cmeta">👤 ${E(dc(r.client))}${r.location?` · 📍 ${E(r.location)}`:''}
     </div><div class="cdates"><div><div class="cdl">תאריך מסמך</div><div class="cdv">${r.docDate||'—'}</div></div><div><div class="cdl">תאריך תוקף</div><div class="cdv">${r.expiry||'—'}</div></div></div>
-    <div class="cfoot"><div class="cfn">${E(r.filename||'')}</div><div style="display:flex;gap:6px;flex-wrap:wrap">${lk}${dupBtn}<button class="edit-btn" onclick="openEditModal(${idx},false)" title="עריכה">✏️</button><button class="wa-btn" onclick="sendReminderNow(${idx})">💬 תזכורת</button></div></div></div>`;
+    <div class="cfoot" style="flex-direction:column;align-items:stretch;gap:5px"><div style="display:flex;gap:6px;flex-wrap:wrap">${lk}${dupBtn}<button class="edit-btn" onclick="openEditModal(${idx},false)" title="עריכה">✏️</button><button class="wa-btn" onclick="sendReminderNow(${idx})">💬 תזכורת</button></div>${r.filename?`<div class="cfn" style="white-space:normal;overflow:visible;text-overflow:unset">${E(r.filename)}</div>`:''}</div></div>`;
   }).join('');
   renderPagination();
 }
@@ -942,7 +1068,7 @@ function clrAll(){
   selClients.clear();
   applyF();
 }
-function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000)}
+function showToast(msg,ms){const t=document.getElementById('toast');if(msg.includes('<'))t.innerHTML=msg;else t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),ms||3000)}
 function E(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
 function dc(c){return (c||'').replace(/^[א-ת]+\.[א-ת]+\s+/,'')}
 
@@ -1037,6 +1163,36 @@ function openEditModal(idx, fromArchive){
 function closeEditModal(){
   document.getElementById('edit-modal').classList.remove('open');
   _editIdx = -1;
+  if(_addMode){
+    _addMode = false;
+    document.getElementById('em-save-btn').textContent = '💾 שמור';
+    document.getElementById('em-delete-btn').style.display = '';
+    document.getElementById('em-filename-row').style.display = 'none';
+  }
+}
+
+function openAddModal(){
+  _addMode = true;
+  _editIdx = -1;
+  document.getElementById('em-title').textContent = '➕ הוסף מסמך חדש';
+  document.getElementById('em-info').textContent = 'מלא את פרטי המסמך החדש. שדות חובה: שם לקוח וסוג מסמך.';
+  ['em-client','em-location','em-type','em-link','em-filename-input'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
+  });
+  document.getElementById('em-docdate').value='';
+  document.getElementById('em-expiry').value='';
+  document.getElementById('em-archive-btn').style.display='none';
+  document.getElementById('em-restore-btn').style.display='none';
+  document.getElementById('em-delete-btn').style.display='none';
+  document.getElementById('em-filename-row').style.display='';
+  document.getElementById('em-save-btn').textContent='➕ הוסף מסמך';
+  const apsOk=!!APPS_SCRIPT_URL;
+  const st=document.getElementById('em-aps-status');
+  st.style.display='';
+  st.innerHTML=apsOk
+    ?`<span class="aps-indicator ok">✅ מחובר ל-Google Sheets — יישמר לצמיתות</span>`
+    :`<span class="aps-indicator err">⚠️ Apps Script לא מוגדר — יישמר מקומית בלבד</span>`;
+  document.getElementById('edit-modal').classList.add('open');
 }
 
 function dateToInput(s){
@@ -1055,6 +1211,7 @@ function inputToDate(s){
 
 // ── שמור עריכה ──
 function saveEdit(){
+  if(_addMode){ saveNew(); return; }
   const r = ALL[_editIdx];
   if(!r) return;
   const newData = {
@@ -1080,6 +1237,30 @@ function saveEdit(){
       showToast(ok ? '✅ נשמר ב-Google Sheets' : '✅ נשמר מקומית (Apps Script לא מוגדר)');
     }
   });
+}
+
+// ── הוספת מסמך חדש ──
+async function saveNew(){
+  const client  = document.getElementById('em-client').value.trim();
+  const docType = document.getElementById('em-type').value.trim();
+  if(!client||!docType){showToast('⚠️ שם לקוח וסוג מסמך הם שדות חובה');return;}
+  const newRec = {
+    client,
+    location: document.getElementById('em-location').value.trim(),
+    docType,
+    docDate:  inputToDate(document.getElementById('em-docdate').value),
+    expiry:   inputToDate(document.getElementById('em-expiry').value),
+    link:     document.getElementById('em-link').value.trim(),
+    filename: document.getElementById('em-filename-input').value.trim() || `${docType} - ${client}`,
+    archived: false, _localArc: false
+  };
+  closeEditModal();
+  ALL.push(newRec);
+  if(newRec.client) selClients.add(newRec.client);
+  applyF();
+  showToast('➕ מוסיף...');
+  const ok = await sheetCall('add', newRec);
+  showToast(ok ? '✅ נוסף ב-Google Sheets' : '✅ נוסף מקומית (Apps Script לא מוגדר)');
 }
 
 // ── מחיקה ──
@@ -1251,6 +1432,8 @@ updateSortBar();
 const WA_INSTANCE = '7107614555';
 const WA_TOKEN    = '9be94b91b1264012b9b39df959537b993dcccb3065b14d40b4';
 const WA_CHAT_ID  = '972504325915@c.us';
+const TG_TOKEN    = '8602693100:AAEz-x_RX7ANZDObdOKJvtpfk1bAcrqHo1E';
+const TG_CHAT_ID  = '510754065';
 
 // תור שליחה — הפרש 10 דקות בין הודעה להודעה
 let _nQueue=[], _nQIndex=0, _nQTimer=null;
@@ -1275,6 +1458,7 @@ function saveNotifSettings(){
 function resetNotifHistory(){
   localStorage.removeItem('notif_sent');
   localStorage.removeItem('notif_last_check');
+  localStorage.removeItem('notif_catchup_done');
   const docs=getNotifDocs();
   document.getElementById('notif-pending').textContent=docs.length;
   document.getElementById('notif-sent-count').textContent='0';
@@ -1292,9 +1476,18 @@ function showNotifStatus(type,msg){
 
 // מסמכים כתומים בלבד: עברו מירוק לכתום (נותרו 1–90 יום)
 function getNotifDocs(){
+  const today=new Date().setHours(0,0,0,0);
+  const catchupDone=localStorage.getItem('notif_catchup_done')==='1';
   return ALL.filter(r=>{
     if(isArchived(r.expiry,r))return false;
-    return st(r.expiry)==='o';
+    const d=pd(r.expiry);
+    if(!d)return false;
+    const days=Math.floor((d-today)/86400000);
+    if(!catchupDone) return days>=45&&days<=100; // שלב catch-up
+    return days===45;                             // שוטף — בדיוק 45 ימים
+  }).sort((a,b)=>{
+    const da=pd(a.expiry), db=pd(b.expiry);
+    return (da||0)-(db||0);
   });
 }
 
@@ -1315,10 +1508,12 @@ function buildDocMsg(r){
   if(s==='r'){emoji='🔴'; statusText=days!==null?`פג לפני ${-days} ימים — נדרש חידוש דחוף`:'פג תוקף';}
   else if(s==='o'){emoji='🟡'; statusText=`נותרו ${days} ימים לחידוש`;}
   else if(s==='g'){emoji='🟢'; statusText=`בתוקף — נותרו ${days} ימים`;}
-  let msg=`${emoji} תזכורת מסמך — ניר הנדסה\n\n`;
-  msg+=`👤 לקוח: ${r.client}\n`;
-  msg+=`📋 מסמך: ${r.docType}\n`;
+  // הסרת קידומת קוד כגון "א.א " משם לקוח
+  const clientName=r.client.replace(/^[א-ת]+\.[א-ת]+\s+/,'');
+  let msg=`${emoji} תזכורת מסמך\n\n`;
+  msg+=`👤 לקוח: ${clientName}\n`;
   if(r.location)msg+=`📍 מיקום: ${r.location}\n`;
+  msg+=`📋 מסמך: ${r.docType}\n`;
   if(r.expiry)msg+=`📅 תאריך תוקף: ${r.expiry}\n`;
   msg+=`⏰ ${statusText}`;
   return msg;
@@ -1333,15 +1528,23 @@ async function sendReminderNow(idx){
     showToast(`✅ הודעה נשלחה: ${dc(r.client)} — ${r.docType}`);
     showCalendarPrompt(r);
   }catch(e){
-    showToast('⚠️ שגיאה בשליחה — בדוק חיבור לאינטרנט');
+    showToast('⚠️ ' + (e&&e.message||'שגיאה לא ידועה'));
   }
 }
 
 async function sendWA(msg){
-  const url=`https://api.green-api.com/waInstance${WA_INSTANCE}/sendMessage/${WA_TOKEN}`;
+  const server=WA_INSTANCE.substring(0,4);
+  const url=`https://${server}.api.greenapi.com/waInstance${WA_INSTANCE}/sendMessage/${WA_TOKEN}`;
   const res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chatId:WA_CHAT_ID,message:msg})});
   const j=await res.json();
-  if(!j.idMessage)throw new Error('שגיאה בשליחה');
+  if(!j.idMessage)throw new Error(JSON.stringify(j).slice(0,120));
+}
+
+async function sendTelegram(msg){
+  const url=`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`;
+  const res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:TG_CHAT_ID,text:msg})});
+  const j=await res.json();
+  if(!j.ok)throw new Error(j.description||JSON.stringify(j).slice(0,120));
 }
 
 // הפעל תור שליחה — הפרש 10 דקות בין כל הודעה
@@ -1359,7 +1562,12 @@ async function sendNotifNow(){
 
 async function processNQueue(){
   if(_nQIndex>=_nQueue.length){
-    showToast(`✅ הסתיים — נשלחו ${_nQueue.length} הודעות`);
+    if(localStorage.getItem('notif_catchup_done')!=='1'){
+      localStorage.setItem('notif_catchup_done','1');
+      showToast(`✅ שלב ראשוני הושלם — ${_nQueue.length} הודעות. מעתה תזכורות רק ב-45 יום בדיוק`);
+    }else{
+      showToast(`✅ הסתיים — נשלחו ${_nQueue.length} הודעות`);
+    }
     _nQueue=[];_nQIndex=0;return;
   }
   const r=_nQueue[_nQIndex];
@@ -1381,6 +1589,13 @@ async function processNQueue(){
 }
 
 async function checkAutoNotif(){
+  if(localStorage.getItem('notif_auto')!=='1')return;
+  const now=new Date();
+  const day=now.getDay(); // 0=ראשון … 6=שבת
+  const hour=now.getHours();
+  // רק ראשון–חמישי (0–4), שעות 8:00–16:00
+  if(day===5||day===6)return;
+  if(hour<8||hour>=16)return;
   const last=parseInt(localStorage.getItem('notif_last_check')||'0');
   if(Date.now()-last<24*60*60*1000)return;
   localStorage.setItem('notif_last_check',Date.now().toString());
@@ -1535,14 +1750,18 @@ function toggleArchive(){
           <label>קישור לקובץ</label>
           <input id="em-link" type="text" placeholder="קישור OneDrive או נתיב מקומי" dir="ltr">
         </div>
+        <div class="em-field full" id="em-filename-row" style="display:none">
+          <label>שם קובץ</label>
+          <input id="em-filename-input" type="text" placeholder="שם הקובץ (אופציונלי)">
+        </div>
       </div>
       <div id="em-aps-status" style="margin-top:12px;font-size:.75rem;color:var(--t3);display:none"></div>
     </div>
     <div class="em-foot">
-      <button class="em-btn em-save" onclick="saveEdit()">💾 שמור</button>
+      <button class="em-btn em-save" id="em-save-btn" onclick="saveEdit()">💾 שמור</button>
       <button class="em-btn em-archive" id="em-archive-btn" onclick="archiveRow()">📦 לארכיון</button>
       <button class="em-btn em-restore" id="em-restore-btn" onclick="restoreRow()" style="display:none">↩️ שחזר</button>
-      <button class="em-btn em-delete" onclick="deleteRow()">🗑️ מחק</button>
+      <button class="em-btn em-delete" id="em-delete-btn" onclick="deleteRow()">🗑️ מחק</button>
       <button class="em-btn em-cancel" onclick="closeEditModal()">ביטול</button>
     </div>
   </div>
