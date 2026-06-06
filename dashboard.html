@@ -872,6 +872,15 @@ async function _odGetItem(shareUrl, token){
   return null;
 }
 
+async function _odFetchItem(url, token){
+  // Fetch item WITHOUT $select so @microsoft.graph.downloadUrl is returned
+  const r = await fetch(url, {headers:{Authorization:`Bearer ${token}`}});
+  if(!r.ok) return null;
+  const d = await r.json();
+  console.log('[dup] item keys:', Object.keys(d).filter(k=>k.includes('download')||k==='webUrl'));
+  return {webUrl:d.webUrl, downloadUrl:d['@microsoft.graph.downloadUrl']||null};
+}
+
 async function _duplicateOneDriveFile(shareUrl, token){
   showToast('🔍 שלב 1/3: מאתר קובץ ב-OneDrive...',8000);
   const item = await _odGetItem(shareUrl, token);
@@ -908,7 +917,7 @@ async function _duplicateOneDriveFile(shareUrl, token){
     await new Promise(r=>setTimeout(r,5000));
     try{
       const sr = await fetch(
-        `https://graph.microsoft.com/v1.0/me/drive/search(q='${encodeURIComponent(newName)}')?$select=id,name,webUrl,@microsoft.graph.downloadUrl&$top=5`,
+        `https://graph.microsoft.com/v1.0/me/drive/search(q='${encodeURIComponent(newName)}')?$top=5`,
         {headers:{Authorization:`Bearer ${token}`}}
       );
       if(sr.ok){
@@ -930,11 +939,10 @@ async function _duplicateOneDriveFile(shareUrl, token){
       if(mData.status==='completed'){
         const rid=mData.resourceId;
         if(rid){
-          const ni=await fetch(
-            `https://graph.microsoft.com/v1.0/me/drive/items/${rid}?$select=webUrl,@microsoft.graph.downloadUrl`,
-            {headers:{Authorization:`Bearer ${token}`}}
+          const result = await _odFetchItem(
+            `https://graph.microsoft.com/v1.0/me/drive/items/${rid}`, token
           );
-          if(ni.ok){const d=await ni.json();return {webUrl:d.webUrl,downloadUrl:d['@microsoft.graph.downloadUrl']||null};}
+          if(result) return result;
         }
         return null;
       }
