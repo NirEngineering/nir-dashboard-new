@@ -829,7 +829,22 @@ async function _getMSToken(){
 }
 
 async function _odGetItem(shareUrl, token){
-  // Try 1: shares API (works for proper sharing links)
+  // Try 1: path-based lookup (onedrive.live.com/?path=/Desktop/...)
+  const pm = shareUrl.match(/[?&]path=([^&]+)/);
+  if(pm){
+    try{
+      const filePath = decodeURIComponent(pm[1]); // e.g. /Desktop/לקוחות/.../file.docx
+      const encodedPath = filePath.split('/').map(s=>encodeURIComponent(s)).join('/');
+      const r = await fetch(
+        `https://graph.microsoft.com/v1.0/me/drive/root:${encodedPath}?$select=id,name,parentReference`,
+        {headers:{Authorization:`Bearer ${token}`}}
+      );
+      if(r.ok){ const d=await r.json(); console.log('[dup] path OK:',d.name); return d; }
+      console.warn('[dup] path API status:', r.status, await r.text());
+    }catch(e){ console.warn('[dup] path API error:',e.message); }
+  }
+
+  // Try 2: shares API (works for proper sharing links)
   try{
     const encoded = btoa(unescape(encodeURIComponent(shareUrl)))
       .replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
@@ -838,10 +853,10 @@ async function _odGetItem(shareUrl, token){
       {headers:{Authorization:`Bearer ${token}`}}
     );
     if(r.ok){ const d=await r.json(); console.log('[dup] shares OK:',d.name); return d; }
-    console.warn('[dup] shares API status:', r.status, await r.text());
+    console.warn('[dup] shares API status:', r.status);
   }catch(e){ console.warn('[dup] shares API error:',e.message); }
 
-  // Try 2: extract resid from URL (onedrive.live.com/?resid=CID!ITEMID)
+  // Try 3: extract resid from URL (onedrive.live.com/?resid=CID!ITEMID)
   const rm = shareUrl.match(/[?&]resid=([A-Za-z0-9]+![0-9]+)/i);
   if(rm){
     try{
@@ -850,7 +865,7 @@ async function _odGetItem(shareUrl, token){
         {headers:{Authorization:`Bearer ${token}`}}
       );
       if(r.ok){ const d=await r.json(); console.log('[dup] resid OK:',d.name); return d; }
-      console.warn('[dup] resid API status:', r.status, await r.text());
+      console.warn('[dup] resid API status:', r.status);
     }catch(e){ console.warn('[dup] resid API error:',e.message); }
   }
 
