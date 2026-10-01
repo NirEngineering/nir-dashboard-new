@@ -1497,17 +1497,15 @@ function showNotifStatus(type,msg){
   el.textContent=msg;
 }
 
-// מסמכים כתומים בלבד: עברו מירוק לכתום (נותרו 1–90 יום)
+// מסמכים עם 45-60 ימים לתפוגה
 function getNotifDocs(){
   const today=new Date().setHours(0,0,0,0);
-  const catchupDone=localStorage.getItem('notif_catchup_done')==='1';
   return ALL.filter(r=>{
     if(isArchived(r.expiry,r))return false;
     const d=pd(r.expiry);
     if(!d)return false;
     const days=Math.floor((d-today)/86400000);
-    if(!catchupDone) return days>=45&&days<=100; // שלב catch-up
-    return days===45;                             // שוטף — בדיוק 45 ימים
+    return days>=45&&days<=60;
   }).sort((a,b)=>{
     const da=pd(a.expiry), db=pd(b.expiry);
     return (da||0)-(db||0);
@@ -1579,7 +1577,7 @@ async function sendNotifNow(){
   if(_nQTimer)clearTimeout(_nQTimer);
   _nQueue=newDocs; _nQIndex=0;
   closeNotifModal();
-  showToast(`📋 מתחיל תור שליחה — ${newDocs.length} הודעות בהפרש של 10 דקות`);
+  showToast(`📋 מתחיל תור שליחה — ${newDocs.length} הודעות בהפרש של 2 דקות`);
   processNQueue();
 }
 
@@ -1606,8 +1604,8 @@ async function processNQueue(){
   }
   _nQIndex++;
   if(_nQIndex<_nQueue.length){
-    _nQTimer=setTimeout(processNQueue,10*60*1000);
-    setTimeout(()=>showToast(`⏱️ ההודעה הבאה תישלח בעוד 10 דקות (השאר את הדף פתוח)`),4000);
+    _nQTimer=setTimeout(processNQueue,2*60*1000);
+    setTimeout(()=>showToast(`⏱️ ההודעה הבאה תישלח בעוד 2 דקות`),4000);
   }
 }
 
@@ -1672,10 +1670,10 @@ function toggleArchive(){
       <button onclick="closeNotifModal()" style="background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--t3)">✕</button>
     </div>
     <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px;font-size:.78rem;color:#166534;margin-bottom:16px;line-height:1.7">
-      ✅ שליחה אוטומטית פעילה תמיד<br>
-      📋 הודעה לכל מסמך שעובר מירוק לכתום (נותרו עד 90 יום)<br>
-      ⏱️ הפרש של 10 דקות בין הודעה להודעה<br>
-      🔁 כל מסמך נשלח פעם אחת בלבד — בפתיחת הדשבורד
+      ✅ שליחה אוטומטית — גם בלי לפתוח את הדשבורד (Python)<br>
+      📋 מסמכים עם 45–60 ימים לתפוגה<br>
+      ⏱️ הפרש של 2 דקות בין הודעה להודעה<br>
+      🔁 כל מסמך נשלח פעם אחת בלבד
     </div>
     <div style="background:var(--s2);border-radius:10px;padding:12px;font-size:.8rem;margin-bottom:16px">
       <div style="display:flex;justify-content:space-between;margin-bottom:6px">
