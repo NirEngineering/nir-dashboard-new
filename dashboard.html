@@ -416,7 +416,7 @@ tr:hover td{background:#f8fafc}
         <button class="sf" id="sf-g" onclick="togSF('g')">🟢 תקין</button>
         <button class="sf" id="sf-n" onclick="togSF('n')">⚪ ללא</button>
       </div>
-      <button id="btn-dedupe" class="on" onclick="togDedupe()" title="הצג רק את הגרסה האחרונה לפי שם קובץ — מסמכים ללא שם קובץ תמיד מוצגים">✦ עדכניים בלבד</button>
+      <button id="btn-dedupe" class="on" onclick="togDedupe()" title="הצג רק את הגרסה האחרונה של כל מסמך (לפי לקוח + מיקום + סוג)">✦ עדכניים בלבד</button>
       <button id="fclr" onclick="clrAll()" style="padding:7px 14px;border-radius:var(--r2);border:1.5px solid #fca5a5;background:#fef2f2;color:var(--red);font-size:.75rem;cursor:pointer;font-family:Heebo,sans-serif;white-space:nowrap;font-weight:600;transition:all .15s">✕ נקה הכל</button>
     </div>
 
@@ -474,15 +474,9 @@ let dedupeLatest=true;
 function _normKey(s){return(s||'').replace(/['"״׳\s]/g,'').toLowerCase();}
 function dedupeF(arr){
   if(!dedupeLatest)return arr;
-  // מסמכים שפג תוקפם (אדום) — תמיד מוצגים כולם, ללא דידוף
-  const expired=arr.filter(r=>st(r.expiry)==='r');
-  const rest=arr.filter(r=>st(r.expiry)!=='r');
   const map={};
-  let _u=0;
-  rest.forEach(r=>{
-    const fn=_normKey(r.filename);
-    // שורות ללא שם קובץ — לא מדדפות
-    const key=fn?fn:'__nofile_'+(++_u);
+  arr.forEach(r=>{
+    const key=_normKey(r.client)+'||'+_normKey(r.location)+'||'+_normKey(r.docType);
     if(!map[key]){map[key]=r;return;}
     const ex=map[key];
     const ne=pd(r.expiry),ee=pd(ex.expiry);
@@ -491,7 +485,7 @@ function dedupeF(arr){
     else if(ne&&!ee){map[key]=r;}
     else if(!ne&&!ee){if(nd&&ed&&nd>ed)map[key]=r;else if(nd&&!ed)map[key]=r;}
   });
-  return [...expired,...Object.values(map)];
+  return Object.values(map);
 }
 function togDedupe(){
   dedupeLatest=!dedupeLatest;
