@@ -474,11 +474,14 @@ let dedupeLatest=true;
 function _normKey(s){return(s||'').replace(/['"״׳\s]/g,'').toLowerCase();}
 function dedupeF(arr){
   if(!dedupeLatest)return arr;
+  // מסמכים שפג תוקפם (אדום) — תמיד מוצגים כולם, ללא דידוף
+  const expired=arr.filter(r=>st(r.expiry)==='r');
+  const rest=arr.filter(r=>st(r.expiry)!=='r');
   const map={};
   let _u=0;
-  arr.forEach(r=>{
+  rest.forEach(r=>{
     const fn=_normKey(r.filename);
-    // שורות ללא שם קובץ — לא מדדפות, כל אחת מקבלת מפתח ייחודי
+    // שורות ללא שם קובץ — לא מדדפות
     const key=fn?fn:'__nofile_'+(++_u);
     if(!map[key]){map[key]=r;return;}
     const ex=map[key];
@@ -488,7 +491,7 @@ function dedupeF(arr){
     else if(ne&&!ee){map[key]=r;}
     else if(!ne&&!ee){if(nd&&ed&&nd>ed)map[key]=r;else if(nd&&!ed)map[key]=r;}
   });
-  return Object.values(map);
+  return [...expired,...Object.values(map)];
 }
 function togDedupe(){
   dedupeLatest=!dedupeLatest;
